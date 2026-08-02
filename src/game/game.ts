@@ -113,20 +113,19 @@ export class Game {
       gameAudio.resume()
       gameAudio.play('ui')
       const def = getShipDef(getSelectedShipId() || this.equippedShipId)
-      void this.equipShipHull(def, true).then(() => {
-        if (this.running) return
-        this.ship.velocity.set(0, 0, 0)
-        this.ship.group.position.set(-380, 60, -220)
-        {
-          const face = this.tmp.set(0, 40, 340).sub(this.ship.group.position).normalize()
-          this.ship.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), face)
-          this.ship.group.rotation.setFromQuaternion(this.ship.group.quaternion)
-        }
-        this.hud.hideTitle()
-        this.running = true
-        this.applyShipLoadout(def)
-        this.hud.toastMessage(`${def.name} · ${this.combat.statusLine().chapter ?? '起飞'}`, 3)
-      })
+      this.running = true
+      this.ship.velocity.set(0, 0, 0)
+      this.ship.group.position.set(-380, 60, -220)
+      {
+        const face = this.tmp.set(0, 40, 340).sub(this.ship.group.position).normalize()
+        this.ship.group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), face)
+        this.ship.group.rotation.setFromQuaternion(this.ship.group.quaternion)
+      }
+      this.hud.hideTitle()
+      this.applyShipLoadout(def)
+      this.hud.toastMessage(`${def.name} · ${this.combat.statusLine().chapter ?? '起飞'}`, 3)
+      // Swap the real hull in the background — never block launch on slow links.
+      void this.equipShipHull(def, true)
     }
     document.getElementById('launch-btn')?.addEventListener('click', begin)
 
@@ -209,27 +208,28 @@ export class Game {
   }
 
   private async loadKenneyAssets() {
+    // Ship hull and station decoration are cosmetic — pre-warm them but never
+    // block combat readiness on slow asset links.
     try {
       const def = getShipDef(getSelectedShipId())
-      await this.equipShipHull(def)
-      await decorateStationWithKenney(this.world.station)
-      await this.combat.init()
-      this.combatReady = true
-      this.assetsReady = true
-      this.beginPlaySession()
-      this.hud.toastMessage(
-        this.playReport
-          ? `Autotest 1/${this.playReport.sessionsTarget}`
-          : '选择飞船 · 起飞挑战 20 关 Boss · 通关升级武器',
-      )
-    } catch (err) {
-      console.warn('Kenney asset load failed, keeping procedural ship', err)
-      await this.combat.init()
-      this.combatReady = true
-      this.assetsReady = true
-      this.beginPlaySession()
-      this.hud.toastMessage('Combat online (fallback hulls)')
+      void this.equipShipHull(def).catch(() => {})
+    } catch {
+      /* ignore */
     }
+    void decorateStationWithKenney(this.world.station).catch(() => {})
+    try {
+      await this.combat.init()
+    } catch (err) {
+      console.warn('Combat init failed', err)
+    }
+    this.combatReady = true
+    this.assetsReady = true
+    this.beginPlaySession()
+    this.hud.toastMessage(
+      this.playReport
+        ? `Autotest 1/${this.playReport.sessionsTarget}`
+        : '选择飞船 · 起飞挑战 20 关 Boss · 通关升级武器',
+    )
   }
 
   private beginPlaySession() {

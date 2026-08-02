@@ -405,6 +405,17 @@ export class CombatSystem {
   }
 
   async init() {
+    // Lightweight init — combat is playable immediately with fallback hulls.
+    // Enemy/boss models warm up in the background; spawn uses makeFallbackHull
+    // until each model arrives, so slow asset links never block the game.
+    const save = loadCampaign()
+    this.upgradeState = foldUpgrades(save.upgrades)
+    this.startLevel(save.level)
+    this.ready = true
+    this.warmModels().catch(() => {})
+  }
+
+  private async warmModels() {
     const keys = new Set(ENEMY_DEFS.map((d) => `${d.pack}:${d.craft}`))
     for (let i = 1; i <= 20; i++) keys.add(`quaternius:${getLevel(i).boss.craft}`)
     await Promise.all(
@@ -423,10 +434,6 @@ export class CombatSystem {
         }
       }),
     )
-    const save = loadCampaign()
-    this.upgradeState = foldUpgrades(save.upgrades)
-    this.startLevel(save.level)
-    this.ready = true
   }
 
   startLevel(levelId: number) {
