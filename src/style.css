@@ -209,6 +209,26 @@ body,
   margin-top: 8vh;
 }
 
+#boot-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: rgba(190, 210, 230, 0.85);
+  background: rgba(10, 16, 24, 0.72);
+  border: 1px solid rgba(90, 200, 200, 0.35);
+  border-radius: 999px;
+  padding: 10px 22px;
+  animation: boot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes boot-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
 #title-card p {
   font-size: 11px;
   letter-spacing: 0.05em;

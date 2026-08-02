@@ -28,6 +28,7 @@
         <div id="crosshair"></div>
         <div id="hit-veil"></div>
         <div id="title-card">
+          <div id="boot-loading">正在加载游戏资源…</div>
           <h1>The Long Silence</h1>
           <div id="hangar">
             <div class="hangar-top">
@@ -69,5 +70,15 @@
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Remove the boot hint once the game logic is running.
+      window.__bootWatch = setInterval(() => {
+        if (window.__GAME__ && window.__GAME__.combatReady) {
+          clearInterval(window.__bootWatch)
+          const el = document.getElementById('boot-loading')
+          if (el) el.remove()
+        }
+      }, 200)
+    </script>
   </body>
 </html>
