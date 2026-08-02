@@ -209,12 +209,22 @@ export class GameAudio {
     el.loop = true
     el.preload = 'auto'
     el.crossOrigin = 'anonymous'
+    // Slow links may take ages to fetch the 3.8MB mp3 — after 9s switch to
+    // the synth layer so music never silently stalls.
+    const giveUp = window.setTimeout(() => {
+      if (this.bgmReady) return
+      this.bgmFailed = true
+      this.startSynthFallback()
+    }, 9000)
     el.addEventListener('error', () => {
+      if (this.bgmFailed || this.bgmReady) return
+      window.clearTimeout(giveUp)
       this.bgmFailed = true
       this.startSynthFallback()
     })
     el.addEventListener('canplaythrough', () => {
       if (this.bgmFailed || this.bgmReady) return
+      window.clearTimeout(giveUp)
       this.bgmReady = true
       this.useSynth = false
       this.bgmEl = el
