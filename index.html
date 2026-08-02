@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Long Silence</title>
+    <script type="module" crossorigin src="./assets/index-B5b5C_65.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-D6E3jU0S.css">
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="c"></canvas>
+      <div id="hud">
+        <div class="brand">THE LONG SILENCE</div>
+        <div id="speed" class="readout">SPD 000</div>
+        <div id="alt" class="readout">ALT ——</div>
+        <div id="mode" class="readout">MODE FLIGHT</div>
+        <div id="cargo" class="readout">CARGO 0</div>
+        <div id="weapon" class="readout combat">WPN PULSE LASER</div>
+        <div id="hp" class="readout combat">HP 100  SH 40</div>
+        <div id="target" class="readout combat">TGT NO LOCK</div>
+        <div id="level" class="readout combat">LV 1  W1/2</div>
+        <div id="kills" class="readout combat">KILLS 0  SCR 0</div>
+        <div id="chapter" class="readout combat">CHAPTER</div>
+        <div id="objectives" class="objectives"></div>
+        <button type="button" id="btn-settings" class="hud-btn">设置 · Esc</button>
+        <div id="prompt" class="prompt hidden"></div>
+        <div id="toast" class="toast hidden"></div>
+        <div id="crosshair"></div>
+        <div id="hit-veil"></div>
+        <div id="title-card">
+          <h1>The Long Silence</h1>
+          <div id="hangar">
+            <div class="hangar-top">
+              <span class="hangar-label">机库 · 选择飞船</span>
+              <span id="hangar-credits">机库积分 0</span>
+            </div>
+            <div id="hangar-grid" class="hangar-grid"></div>
+            <div class="hangar-detail">
+              <div>
+                <div id="hangar-name">Drift Runner</div>
+                <div id="hangar-tag">标准巡航艇</div>
+                <div id="hangar-stats">HP 160 · SH 90 · SPD ×1.00</div>
+              </div>
+              <button type="button" id="hangar-action" class="hangar-btn primary">装备此舰</button>
+            </div>
+          </div>
+          <button type="button" id="launch-btn" class="launch-btn">起飞</button>
+          <p>四章战役 · 任务目标 · 每 3 杀掉落射击升级 · WASD 飞 · SPACE 开火 · Esc 设置</p>
+        </div>
+        <div id="tutorial-panel" class="panel hidden">
+          <h2>飞行简报</h2>
+          <ol>
+            <li><b>WASD / 鼠标</b> — 驾驶与瞄准</li>
+            <li><b>空格</b> — 开火 · <b>右键</b> 导弹</li>
+            <li><b>每击落 3 架</b> — 掉落发光射击升级，飞过去拾取</li>
+            <li><b>完成关卡目标</b> — 歼灭配额 + Boss（部分关需拾取）</li>
+            <li><b>Esc</b> — 暂停与音量设置</li>
+          </ol>
+          <button type="button" id="tutorial-next" class="hangar-btn primary">明白，起飞</button>
+        </div>
+        <div id="settings-panel" class="panel hidden">
+          <h2>设置 · 暂停</h2>
+          <label class="set-row">音量 <input id="set-volume" type="range" min="0" max="100" /></label>
+          <label class="set-row"><input id="set-sfx" type="checkbox" /> 启用音效</label>
+          <label class="set-row">鼠标灵敏度 <input id="set-sens" type="range" min="0.4" max="2.2" step="0.1" /></label>
+          <p class="set-hint">四章战役：边境试炼 → 矿带猎杀 → 静默航道 → 终焉回响</p>
+          <button type="button" id="settings-close" class="hangar-btn primary">继续飞行</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+Quaternius Ultimate Spaceships Pack (CC0 1.0)
+https://quaternius.com/packs/ultimatespaceships.html
+Converted locally from Blender sources mirrored at:
+https://github.com/Malcolmnixon/Quaternius-Ultimate-Spaceships-Pack
