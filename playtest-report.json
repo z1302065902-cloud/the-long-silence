@@ -1,0 +1,68 @@
+{
+  "done": true,
+  "sessionsTarget": 5,
+  "sessionsCompleted": 5,
+  "totalKills": 25,
+  "totalDeaths": 0,
+  "sessions": [
+    {
+      "index": 1,
+      "durationSec": 18,
+      "kills": 5,
+      "deaths": 0,
+      "score": 1473,
+      "maxWave": 2,
+      "pickups": 1,
+      "issues": [],
+      "endReason": "timeout"
+    },
+    {
+      "index": 2,
+      "durationSec": 18,
+      "kills": 5,
+      "deaths": 0,
+      "score": 1878,
+      "maxWave": 2,
+      "pickups": 1,
+      "issues": [],
+      "endReason": "timeout"
+    },
+    {
+      "index": 3,
+      "durationSec": 18.01,
+      "kills": 5,
+      "deaths": 0,
+      "score": 2045,
+      "maxWave": 1,
+      "pickups": 1,
+      "issues": [],
+      "endReason": "timeout"
+    },
+    {
+      "index": 4,
+      "durationSec": 18.01,
+      "kills": 7,
+      "deaths": 0,
+      "score": 2816,
+      "maxWave": 2,
+      "pickups": 2,
+      "issues": [],
+      "endReason": "timeout"
+    },
+    {
+      "index": 5,
+      "durationSec": 18.01,
+      "kills": 3,
+      "deaths": 0,
+      "score": 738,
+      "maxWave": 2,
+      "pickups": 1,
+      "issues": [],
+      "endReason": "timeout"
+    }
+  ],
+  "uniqueIssues": [],
+  "errors": [],
+  "startedAt": 1785594520940,
+  "finishedAt": 1785594611380
+}
