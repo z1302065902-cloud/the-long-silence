@@ -284,19 +284,27 @@ export class SolarSystem {
         new Vector3(700, -240, -1400),
         new Vector3(-400, -380, 900),
         new Vector3(1100, 180, -600),
+        new Vector3(-200, 500, -800),
+        new Vector3(600, 400, 1100),
+        new Vector3(-800, -200, -1500),
+        new Vector3(300, -500, 1300),
       ]
+      const nebulaColors: number[] = [0x4a6cff, 0x8b3a8b, 0x2e8b57, 0xff6b35, 0x6a0dad, 0x1e90ff, 0xdc143c, 0x20b2aa]
       nebulaPositions.forEach((pos, i) => {
-        const tex = createNebulaSpriteTexture(512, seed + i * 13, 1)
+        const colorSeed = seed + i * 13 + i * 7
+        const tex = createNebulaSpriteTexture(512, colorSeed, 1)
+        // Use color from palette to tint sprite material color
         const mat = new SpriteMaterial({
           map: tex,
+          color: nebulaColors[i % nebulaColors.length],
           blending: AdditiveBlending,
           transparent: true,
           depthWrite: false,
-          opacity: 0.62,
+          opacity: 0.55 + (i % 3) * 0.12,
         })
         const sprite = new Sprite(mat)
         sprite.position.copy(pos)
-        const s = 1000 + i * 140
+        const s = 800 + i * 110
         sprite.scale.set(s, s, 1)
         sprite.renderOrder = -90
         this.root.add(sprite)

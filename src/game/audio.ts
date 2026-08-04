@@ -108,6 +108,15 @@ export class GameAudio {
     }
     void this.ctx.resume()
     this.startMusic()
+    // Keep audio alive — browsers suspend AudioContext on tab blur
+    this.setupKeepAlive()
+  }
+
+  private setupKeepAlive() {
+    const resume = () => { if (this.ctx?.state === 'suspended') void this.ctx?.resume() }
+    document.addEventListener('visibilitychange', resume)
+    window.addEventListener('focus', resume)
+    document.body.addEventListener('pointerdown', resume, { once: true })
   }
 
   play(kind: SfxKind) {
