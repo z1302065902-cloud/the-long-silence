@@ -3,7 +3,7 @@
  * No downloads needed; everything synthesized at runtime.
  */
 
-type SfxKind = 'fire' | 'hit' | 'boom' | 'pickup' | 'ui' | 'damage' | 'clear'
+type SfxKind = 'fire' | 'fire_pulse' | 'fire_plasma' | 'fire_missile' | 'fire_rail' | 'fire_flak' | 'hit' | 'boom' | 'pickup' | 'ui' | 'damage' | 'clear'
 
 // A-minor space progression: Am — F — C — G (2 bars each)
 const CHORDS: number[][] = [
@@ -117,76 +117,200 @@ export class GameAudio {
     const t = this.ctx.currentTime
     switch (kind) {
       case 'fire':
+      case 'fire_pulse': {
+        // High-pitched zap — thin, bright, cuts through mix
         if (t - this.lastFire < 0.045) return
         this.lastFire = t
-        {
-          const f = 900 + Math.random() * 140
-          this.tone({
-            freq: f,
-            endFreq: f * 0.5,
-            dur: 0.07,
-            gain: 0.045,
-            type: 'square',
-            attack: 0.002,
-            release: 0.05,
-            filter: 3200,
-            filterEnd: 900,
-            pan: Math.random() * 0.3 - 0.15,
-          })
-          this.noise(0.03, 0.02, 4000, 'highpass')
-        }
-        break
-      case 'hit':
+        const f1 = 1800 + Math.random() * 300
         this.tone({
-          freq: 1500 + Math.random() * 500,
+          freq: f1,
+          endFreq: f1 * 0.3,
           dur: 0.05,
-          gain: 0.06,
-          type: 'triangle',
-          attack: 0.002,
+          gain: 0.055,
+          type: 'square',
+          attack: 0.001,
           release: 0.04,
+          filter: 4800,
+          filterEnd: 600,
+          pan: Math.random() * 0.2 - 0.1,
+        })
+        this.noise(0.025, 0.015, 6000, 'highpass')
+        break
+      }
+      case 'fire_plasma': {
+        // Deep thump — heavy cannon, fat low-end
+        if (t - this.lastFire < 0.12) return
+        this.lastFire = t
+        this.tone({
+          freq: 320 + Math.random() * 80,
+          endFreq: 90,
+          dur: 0.18,
+          gain: 0.2,
+          type: 'sawtooth',
+          attack: 0.003,
+          release: 0.15,
+          filter: 1800,
+          filterEnd: 300,
+          pan: Math.random() * 0.15 - 0.075,
+        })
+        this.tone({
+          freq: 65,
+          endFreq: 40,
+          dur: 0.12,
+          gain: 0.12,
+          type: 'sine',
+          attack: 0.002,
+          release: 0.1,
+        })
+        this.noise(0.12, 0.06, 1200)
+        break
+      }
+      case 'fire_missile': {
+        // Whoosh + rumble — longer, rising
+        if (t - this.lastFire < 0.2) return
+        this.lastFire = t
+        this.tone({
+          freq: 280,
+          endFreq: 520,
+          dur: 0.25,
+          gain: 0.08,
+          type: 'sawtooth',
+          attack: 0.01,
+          release: 0.22,
+          filter: 1500,
+          filterEnd: 2500,
+          pan: Math.random() * 0.2 - 0.1,
+        })
+        this.tone({
+          freq: 110,
+          endFreq: 60,
+          dur: 0.35,
+          gain: 0.15,
+          type: 'sine',
+          attack: 0.005,
+          release: 0.3,
+          filter: 600,
+        })
+        this.noise(0.35, 0.04, 3000, 'highpass', Math.random() * 0.2 - 0.1)
+        break
+      }
+      case 'fire_rail': {
+        // Sharp crack — high-pitched, lightning-fast
+        if (t - this.lastFire < 0.15) return
+        this.lastFire = t
+        this.tone({
+          freq: 3200 + Math.random() * 600,
+          endFreq: 800,
+          dur: 0.04,
+          gain: 0.07,
+          type: 'square',
+          attack: 0.001,
+          release: 0.035,
+          filter: 8000,
+          filterEnd: 400,
+          pan: Math.random() * 0.1 - 0.05,
+        })
+        this.tone({
+          freq: 8500,
+          endFreq: 2000,
+          dur: 0.02,
+          gain: 0.035,
+          type: 'sine',
+          attack: 0,
+          release: 0.018,
+        })
+        this.noise(0.02, 0.03, 10000, 'highpass')
+        break
+      }
+      case 'fire_flak': {
+        // Rattle burst — short, percussive
+        if (t - this.lastFire < 0.08) return
+        this.lastFire = t
+        this.tone({
+          freq: 1200 + Math.random() * 400,
+          endFreq: 400,
+          dur: 0.035,
+          gain: 0.05,
+          type: 'triangle',
+          attack: 0.001,
+          release: 0.03,
           filter: 5000,
+          filterEnd: 800,
+          pan: Math.random() * 0.3 - 0.15,
+        })
+        this.noise(0.03, 0.025, 5000, 'highpass')
+        break
+      }
+      case 'hit': {
+        // Ice-pick sharpness — more metallic
+        this.tone({
+          freq: 2200 + Math.random() * 800,
+          dur: 0.04,
+          gain: 0.08,
+          type: 'square',
+          attack: 0.001,
+          release: 0.035,
+          filter: 6000,
           pan: Math.random() * 0.5 - 0.25,
         })
-        this.noise(0.045, 0.045, 2600, 'highpass')
+        this.tone({
+          freq: 180 + Math.random() * 60,
+          dur: 0.06,
+          gain: 0.04,
+          type: 'sine',
+          attack: 0.002,
+          release: 0.05,
+          filter: 400,
+        })
+        this.noise(0.035, 0.04, 3500, 'highpass')
         break
-      case 'boom':
-        this.tone({ freq: 150, endFreq: 38, dur: 0.42, gain: 0.5, type: 'sine', attack: 0.004, release: 0.38 })
-        this.tone({ freq: 92, endFreq: 44, dur: 0.28, gain: 0.22, type: 'sawtooth', attack: 0.004, release: 0.24, filter: 700 })
-        this.noise(0.45, 0.28, 480)
-        this.noise(0.3, 0.14, 1800, 'highpass', Math.random() * 0.6 - 0.3)
+      }
+      case 'boom': {
+        // Sub-bass + mid punch + noise layer
+        this.tone({ freq: 120, endFreq: 32, dur: 0.55, gain: 0.55, type: 'sine', attack: 0.003, release: 0.5 })
+        this.tone({ freq: 80, endFreq: 38, dur: 0.35, gain: 0.3, type: 'sawtooth', attack: 0.003, release: 0.3, filter: 600 })
+        this.tone({ freq: 55, endFreq: 28, dur: 0.45, gain: 0.18, type: 'sine', attack: 0.005, release: 0.4 })
+        this.noise(0.55, 0.35, 350)
+        this.noise(0.35, 0.18, 2000, 'highpass', Math.random() * 0.6 - 0.3)
         break
-      case 'pickup':
-        ;[660, 880, 1100].forEach((f, i) =>
+      }
+      case 'pickup': {
+        ;[660, 880, 1100, 1320].forEach((f, i) =>
           this.tone({
             freq: f,
-            dur: 0.14,
+            dur: 0.16,
             gain: 0.1,
             type: 'sine',
             attack: 0.005,
-            release: 0.12,
-            delay: i * 0.06,
-            pan: (i - 1) * 0.25,
+            release: 0.14,
+            delay: i * 0.05,
+            pan: (i - 1.5) * 0.2,
           }),
         )
-        this.noise(0.12, 0.05, 6000, 'highpass')
+        this.noise(0.12, 0.04, 7000, 'highpass')
         break
-      case 'damage':
-        this.tone({ freq: 210, endFreq: 70, dur: 0.28, gain: 0.22, type: 'sawtooth', attack: 0.004, release: 0.24, filter: 1200 })
-        this.noise(0.2, 0.16, 750)
+      }
+      case 'damage': {
+        // More punch — sub + mid + noise
+        this.tone({ freq: 160, endFreq: 55, dur: 0.32, gain: 0.28, type: 'sawtooth', attack: 0.003, release: 0.28, filter: 1400 })
+        this.tone({ freq: 50, endFreq: 30, dur: 0.25, gain: 0.12, type: 'sine', attack: 0.005, release: 0.2 })
+        this.noise(0.22, 0.15, 600)
         break
-      case 'clear':
+      }
+      case 'clear': {
         ;[392, 494, 587, 784].forEach((f, i) =>
           this.tone({
             freq: f,
-            dur: 0.28,
-            gain: 0.11,
+            dur: 0.32,
+            gain: 0.12,
             type: 'triangle',
             attack: 0.01,
-            release: 0.24,
-            delay: i * 0.09,
+            release: 0.28,
+            delay: i * 0.08,
           }),
         )
         break
+      }
       case 'ui':
         this.tone({ freq: 680, dur: 0.06, gain: 0.07, type: 'triangle', attack: 0.002, release: 0.05 })
         break

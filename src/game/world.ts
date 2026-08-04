@@ -303,6 +303,9 @@ export class SolarSystem {
         this.nebulaSprites.push(sprite)
       })
     }
+
+    // Asteroid belt — ring of small faceted rocks between inner planets
+    this.buildAsteroidBelt(seed)
   }
 
   private applyEnvPalette(id: EnvId): void {
@@ -922,6 +925,52 @@ export class SolarSystem {
       }
     })
     this.scene.remove(this.root)
+  }
+
+  /** Asteroid belt: ~200 small faceted rocks orbiting between inner planets. */
+  private asteroidBelt: InstancedMesh | null = null
+
+  private buildAsteroidBelt(seed: number): void {
+    if (this.asteroidBelt) {
+      this.root.remove(this.asteroidBelt)
+      this.asteroidBelt.geometry.dispose()
+      ;(this.asteroidBelt.material as MeshStandardMaterial).dispose()
+    }
+
+    const count = 220
+    const innerRadius = 160
+    const outerRadius = 240
+    const geo = new OctahedronGeometry(1.2, 0)
+    const mat = new MeshStandardMaterial({
+      color: 0x8899aa,
+      metalness: 0.5,
+      roughness: 0.6,
+    })
+
+    const rng = createSeededRandom(seed + 999)
+    this.asteroidBelt = new InstancedMesh(geo, mat, count)
+    const m = new Matrix4()
+    const q = new Quaternion()
+    const s = new Vector3()
+
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + rng() * 0.3
+      const radius = innerRadius + rng() * (outerRadius - innerRadius)
+      const height = (rng() - 0.5) * 18
+      const x = Math.cos(angle) * radius
+      const z = Math.sin(angle) * radius
+      const y = height
+
+      const size = 0.4 + rng() * 1.6
+      s.set(size, size * (0.5 + rng() * 0.5), size * (0.7 + rng() * 0.3))
+      q.setFromEuler(new Euler(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI))
+      m.compose(new Vector3(x, y, z), q, s)
+      this.asteroidBelt!.setMatrixAt(i, m)
+    }
+    this.asteroidBelt.instanceMatrix.needsUpdate = true
+    this.asteroidBelt.castShadow = true
+    this.asteroidBelt.receiveShadow = true
+    this.root.add(this.asteroidBelt)
   }
 }
 

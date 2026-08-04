@@ -90,6 +90,12 @@ export const WEAPONS: WeaponDef[] = [
 type Projectile = {
   active: boolean
   mesh: THREE.Mesh
+  bodyGroup: THREE.Group
+  missileGroup: THREE.Group
+  glow: THREE.Sprite
+  trail: THREE.Points | null
+  trailPos: Float32Array
+  trailIdx: number
   velocity: THREE.Vector3
   life: number
   damage: number
@@ -98,6 +104,8 @@ type Projectile = {
   homing: number
   pierce: boolean
   hit: Set<number>
+  weaponId: WeaponId
+  glowPhase: number
 }
 
 export type EnemyKind =
@@ -337,7 +345,7 @@ export class CombatSystem {
   onKillReward: ((score: number) => void) | null = null
   onLevelClear: ((level: number, reward: WeaponUpgradeId) => void) | null = null
   onPickup: ((label: string) => void) | null = null
-  onSfx: ((kind: 'fire' | 'hit' | 'boom' | 'pickup' | 'damage' | 'clear') => void) | null = null
+  onSfx: ((kind: 'fire' | 'fire_pulse' | 'fire_plasma' | 'fire_missile' | 'fire_rail' | 'fire_flak' | 'hit' | 'boom' | 'pickup' | 'damage' | 'clear') => void) | null = null
   private weaponCd = 0
   private charge = 0
   private projectiles: Projectile[] = []
@@ -362,6 +370,7 @@ export class CombatSystem {
   private bossDown = false
   private tmp = new THREE.Vector3()
   private tmp2 = new THREE.Vector3()
+  private tmp3 = new THREE.Vector3()
   private fwd = new THREE.Vector3()
   private right = new THREE.Vector3()
   private craftCache = new Map<string, THREE.Group>()
@@ -455,6 +464,8 @@ export class CombatSystem {
     for (const p of this.projectiles) {
       p.active = false
       p.mesh.visible = false
+      p.missileGroup.visible = false
+      p.bodyGroup.visible = false
     }
   }
 
@@ -639,7 +650,7 @@ export class CombatSystem {
         damageMul: dmgMul,
       })
     }
-    this.onSfx?.('fire')
+    this.onSfx?.(`fire_${w.id}` as any)
   }
 
   private spawnProjectile(opts: {
@@ -651,18 +662,69 @@ export class CombatSystem {
   }) {
     let p = this.projectiles.find((x) => !x.active)
     if (!p) {
-      const geo = new THREE.SphereGeometry(1, 8, 8)
+      // Use a shared sphere for geometry — shape varies per weapon via scale/rotation
+      const geo = new THREE.SphereGeometry(1, 6, 6)
       const mat = new THREE.MeshBasicMaterial({
-        color: opts.weapon.color,
+        color: 0xffffff,
         transparent: true,
         opacity: 0.95,
+        depthWrite: false,
       })
-      const mesh = new THREE.Mesh(geo, mat)
+      const mesh = new THREE.Mesh(geo, mat.clone())
       mesh.visible = false
       this.root.add(mesh)
+
+      // Glow sprite — always on, follows the projectile
+      const glowTex = this.makeGlowTexture()
+      const glowMat = new THREE.SpriteMaterial({
+        map: glowTex,
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+      const glow = new THREE.Sprite(glowMat)
+      glow.visible = false
+      this.root.add(glow)
+
+      // Missile body — cone nose + cylinder + fins
+      const missileGroup = this.createMissileBody()
+      missileGroup.visible = false
+      this.root.add(missileGroup)
+
+      // 3D body group for energy weapons (pulse, plasma, rail, flak)
+      const bodyGroup = new THREE.Group()
+      bodyGroup.visible = false
+      this.root.add(bodyGroup)
+
+      // Trail — 16-point ribbon behind the projectile
+      const trailCount = 16
+      const trailPos = new Float32Array(trailCount * 3)
+      const trailGeo = new THREE.BufferGeometry()
+      trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3))
+      const trailMat = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.3,
+        transparent: true,
+        opacity: 0.4,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true,
+      })
+      const trail = new THREE.Points(trailGeo, trailMat)
+      trail.visible = false
+      this.root.add(trail)
+
       p = {
         active: false,
         mesh,
+        bodyGroup,
+        missileGroup,
+        glow,
+        trail,
+        trailPos,
+        trailIdx: 0,
         velocity: new THREE.Vector3(),
         life: 0,
         damage: 0,
@@ -671,23 +733,410 @@ export class CombatSystem {
         homing: 0,
         pierce: false,
         hit: new Set(),
+        weaponId: 'pulse',
+        glowPhase: Math.random() * Math.PI * 2,
       }
       this.projectiles.push(p)
     }
 
     p.active = true
+    p.weaponId = opts.weapon.id
     p.mesh.visible = true
     p.mesh.position.copy(opts.origin)
-    p.mesh.scale.setScalar(opts.weapon.radius)
-    ;(p.mesh.material as THREE.MeshBasicMaterial).color.setHex(opts.weapon.color)
-    p.velocity.copy(opts.dir).multiplyScalar(opts.weapon.speed)
-    p.life = opts.weapon.life
-    p.damage = opts.weapon.damage * (opts.damageMul ?? 1)
-    p.radius = opts.weapon.radius * 2.2
+    p.mesh.rotation.set(0, 0, 0)
+    p.missileGroup.visible = false
+      p.bodyGroup.visible = false
+    p.glow.visible = true
+    p.glow.position.copy(opts.origin)
+    p.trail!.visible = true
+    p.trailIdx = 0
+    // Fill trail with current position
+    for (let i = 0; i < 16; i++) {
+      p.trailPos[i * 3] = opts.origin.x
+      p.trailPos[i * 3 + 1] = opts.origin.y
+      p.trailPos[i * 3 + 2] = opts.origin.z
+    }
+    p.trail!.geometry.attributes.position.needsUpdate = true
+
+    // Weapon-specific 3D body + glow + trail
+    const mat = p.mesh.material as THREE.MeshBasicMaterial
+    const glowMat = p.glow.material as THREE.SpriteMaterial
+    const trailMat = p.trail!.material as THREE.PointsMaterial
+    mat.color.setHex(opts.weapon.color)
+    glowMat.color.setHex(opts.weapon.color)
+    const w = opts.weapon
+    switch (w.id) {
+      case 'pulse': {
+        // Crystal bolt — 3D hexagonal prism
+        p.mesh.visible = false
+        p.missileGroup.visible = false
+      p.bodyGroup.visible = false
+        this.buildBodyForWeapon('pulse', p.bodyGroup)
+        p.bodyGroup.visible = true
+        p.bodyGroup.position.copy(opts.origin)
+        p.bodyGroup.lookAt(opts.origin.clone().add(opts.dir))
+        p.bodyGroup.scale.setScalar(0.4)
+        p.glow.scale.set(2, 2, 1)
+        glowMat.opacity = 0.5
+        trailMat.color.setHex(0x66ffee)
+        trailMat.size = 0.25
+        trailMat.opacity = 0.35
+        break
+      }
+      case 'plasma': {
+        // Glowing orb with rings — 3D torus rings
+        p.mesh.visible = false
+        p.missileGroup.visible = false
+      p.bodyGroup.visible = false
+        this.buildBodyForWeapon('plasma', p.bodyGroup)
+        p.bodyGroup.visible = true
+        p.bodyGroup.position.copy(opts.origin)
+        p.bodyGroup.scale.setScalar(w.radius * 1.2)
+        p.glow.scale.set(6, 6, 1)
+        glowMat.opacity = 0.7
+        trailMat.color.setHex(0xb44cff)
+        trailMat.size = 0.55
+        trailMat.opacity = 0.5
+        break
+      }
+      case 'missile': {
+        // Real missile body — cone + cylinder + fins + exhaust
+        p.mesh.visible = false
+        p.bodyGroup.visible = false
+        p.missileGroup.visible = true
+        p.missileGroup.position.copy(opts.origin)
+        p.missileGroup.lookAt(opts.origin.clone().add(opts.dir))
+        p.missileGroup.scale.setScalar(0.35)
+        p.glow.scale.set(3, 3, 1)
+        glowMat.opacity = 0.6
+        trailMat.color.setHex(0xff8844)
+        trailMat.size = 0.5
+        trailMat.opacity = 0.55
+        break
+      }
+      case 'rail': {
+        // Ultra-thin lance — 3D hexagonal cylinder + shockwave ring
+        p.mesh.visible = false
+        p.missileGroup.visible = false
+      p.bodyGroup.visible = false
+        this.buildBodyForWeapon('rail', p.bodyGroup)
+        p.bodyGroup.visible = true
+        p.bodyGroup.position.copy(opts.origin)
+        p.bodyGroup.lookAt(opts.origin.clone().add(opts.dir))
+        p.bodyGroup.scale.setScalar(0.35)
+        p.glow.scale.set(1.5, 1.5, 1)
+        glowMat.opacity = 0.3
+        trailMat.color.setHex(0xaaccff)
+        trailMat.size = 0.15
+        trailMat.opacity = 0.25
+        break
+      }
+      case 'flak': {
+        // Crystal shard — 3D octahedron
+        p.mesh.visible = false
+        p.missileGroup.visible = false
+      p.bodyGroup.visible = false
+        this.buildBodyForWeapon('flak', p.bodyGroup)
+        p.bodyGroup.visible = true
+        p.bodyGroup.position.copy(opts.origin)
+        p.bodyGroup.lookAt(opts.origin.clone().add(opts.dir))
+        p.bodyGroup.scale.setScalar(0.5)
+        p.glow.scale.set(1.5, 1.5, 1)
+        glowMat.opacity = 0.4
+        trailMat.color.setHex(0xffdd55)
+        trailMat.size = 0.2
+        trailMat.opacity = 0.3
+        break
+      }
+      default:
+        p.mesh.scale.setScalar(w.radius)
+    }
+    // Face velocity direction
+    p.mesh.lookAt(opts.origin.clone().add(opts.dir))
+
+    p.velocity.copy(opts.dir).multiplyScalar(w.speed)
+    p.life = w.life
+    p.damage = w.damage * (opts.damageMul ?? 1)
+    p.radius = w.radius * 2.2
     p.fromPlayer = opts.fromPlayer
-    p.homing = opts.weapon.homing ?? 0
-    p.pierce = Boolean(opts.weapon.pierce)
+    p.homing = w.homing ?? 0
+    p.pierce = Boolean(w.pierce)
     p.hit.clear()
+  }
+
+  /** Small radial gradient texture for projectile glow. */
+  private makeGlowTexture(): THREE.CanvasTexture {
+    const c = document.createElement('canvas')
+    c.width = 64
+    c.height = 64
+    const ctx = c.getContext('2d')!
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
+    g.addColorStop(0, 'rgba(255,255,255,1)')
+    g.addColorStop(0.2, 'rgba(255,255,255,0.8)')
+    g.addColorStop(0.5, 'rgba(255,255,255,0.3)')
+    g.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, 64, 64)
+    const tex = new THREE.CanvasTexture(c)
+    return tex
+  }
+
+  /** Realistic missile body: cone nose + cylinder body + 4 fins + exhaust flame. */
+  private createMissileBody(): THREE.Group {
+    const g = new THREE.Group()
+
+    // Body — long cylinder
+    const bodyGeo = new THREE.CylinderGeometry(0.35, 0.35, 3, 8)
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0x8899aa,
+      metalness: 0.7,
+      roughness: 0.25,
+      emissive: 0x222233,
+      emissiveIntensity: 0.3,
+    })
+    const body = new THREE.Mesh(bodyGeo, bodyMat)
+    body.rotation.x = Math.PI / 2
+    g.add(body)
+
+    // Nose cone — pointed tip
+    const noseGeo = new THREE.ConeGeometry(0.35, 0.9, 8)
+    const noseMat = new THREE.MeshStandardMaterial({
+      color: 0xccddff,
+      metalness: 0.8,
+      roughness: 0.15,
+      emissive: 0x333355,
+      emissiveIntensity: 0.4,
+    })
+    const nose = new THREE.Mesh(noseGeo, noseMat)
+    nose.rotation.x = Math.PI / 2
+    nose.position.z = -1.95
+    g.add(nose)
+
+    // 4 fins at rear
+    const finGeo = new THREE.BoxGeometry(0.04, 0.6, 0.7)
+    const finMat = new THREE.MeshStandardMaterial({
+      color: 0x667788,
+      metalness: 0.85,
+      roughness: 0.2,
+      emissive: 0x111122,
+      emissiveIntensity: 0.2,
+    })
+    for (let i = 0; i < 4; i++) {
+      const fin = new THREE.Mesh(finGeo, finMat)
+      fin.position.z = 1.3
+      fin.position.y = 0.35
+      fin.rotation.z = (i * Math.PI) / 2
+      g.add(fin)
+    }
+
+    // Exhaust flame — bright cone behind
+    const flameGeo = new THREE.ConeGeometry(0.25, 1.2, 6, 1, true)
+    const flameMat = new THREE.MeshBasicMaterial({
+      color: 0xff8833,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    const flame = new THREE.Mesh(flameGeo, flameMat)
+    flame.rotation.x = Math.PI / 2
+    flame.position.z = 2.0
+    flame.name = 'flame'
+    g.add(flame)
+
+    // Inner bright core
+    const coreGeo = new THREE.ConeGeometry(0.08, 0.6, 6, 1, true)
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+    const core = new THREE.Mesh(coreGeo, coreMat)
+    core.rotation.x = Math.PI / 2
+    core.position.z = 2.0
+    core.name = 'core'
+    g.add(core)
+
+    return g
+  }
+
+  /** Build 3D body for a weapon type — called once per projectile slot. */
+  private buildBodyForWeapon(weaponId: WeaponId, g: THREE.Group) {
+    // Clear existing children
+    while (g.children.length > 0) g.remove(g.children[0])
+
+    switch (weaponId) {
+      case 'pulse': {
+        // Crystal bolt — thin hexagonal prism with bright core
+        const coreGeo = new THREE.CylinderGeometry(0.15, 0.15, 2.2, 6)
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: 0x66ffee,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const core = new THREE.Mesh(coreGeo, coreMat)
+        core.rotation.x = Math.PI / 2
+        g.add(core)
+
+        // Outer shell — slightly larger, semi-transparent
+        const shellGeo = new THREE.CylinderGeometry(0.28, 0.28, 2.4, 6)
+        const shellMat = new THREE.MeshBasicMaterial({
+          color: 0x66ffee,
+          transparent: true,
+          opacity: 0.3,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const shell = new THREE.Mesh(shellGeo, shellMat)
+        shell.rotation.x = Math.PI / 2
+        g.add(shell)
+
+        // Tip cone
+        const tipGeo = new THREE.ConeGeometry(0.15, 0.5, 6)
+        const tipMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.95,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const tip = new THREE.Mesh(tipGeo, tipMat)
+        tip.rotation.x = Math.PI / 2
+        tip.position.z = -1.35
+        g.add(tip)
+        break
+      }
+      case 'plasma': {
+        // Glowing orb with 3 rotating rings
+        const coreGeo = new THREE.SphereGeometry(0.55, 12, 12)
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: 0xb44cff,
+          transparent: true,
+          opacity: 0.7,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const core = new THREE.Mesh(coreGeo, coreMat)
+        g.add(core)
+
+        // 3 rings at different angles
+        const ringGeo = new THREE.TorusGeometry(0.7, 0.08, 8, 16)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0xdd88ff,
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        for (let i = 0; i < 3; i++) {
+          const ring = new THREE.Mesh(ringGeo, ringMat)
+          ring.rotation.x = (i * Math.PI) / 3 + Math.PI / 2
+          ring.rotation.y = i * 0.4
+          ring.name = `ring_${i}`
+          g.add(ring)
+        }
+
+        // Inner bright core
+        const innerGeo = new THREE.SphereGeometry(0.2, 8, 8)
+        const innerMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.8,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const inner = new THREE.Mesh(innerGeo, innerMat)
+        g.add(inner)
+        break
+      }
+      case 'rail': {
+        // Ultra-thin hexagonal lance with bright core
+        const coreGeo = new THREE.CylinderGeometry(0.06, 0.06, 4.5, 6)
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.95,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const core = new THREE.Mesh(coreGeo, coreMat)
+        core.rotation.x = Math.PI / 2
+        g.add(core)
+
+        // Outer shell
+        const shellGeo = new THREE.CylinderGeometry(0.15, 0.15, 4.5, 6)
+        const shellMat = new THREE.MeshBasicMaterial({
+          color: 0xaaccff,
+          transparent: true,
+          opacity: 0.35,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const shell = new THREE.Mesh(shellGeo, shellMat)
+        shell.rotation.x = Math.PI / 2
+        g.add(shell)
+
+        // Shockwave ring
+        const ringGeo = new THREE.TorusGeometry(0.22, 0.03, 6, 12)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0xaaccff,
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const ring = new THREE.Mesh(ringGeo, ringMat)
+        ring.rotation.x = Math.PI / 2
+        ring.name = 'shockwave'
+        g.add(ring)
+        break
+      }
+      case 'flak': {
+        // Small faceted crystal shard
+        const geo = new THREE.OctahedronGeometry(0.25, 0)
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0xffdd55,
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const shard = new THREE.Mesh(geo, mat)
+        g.add(shard)
+
+        // Wireframe overlay for faceted look
+        const wireGeo = new THREE.OctahedronGeometry(0.26, 0)
+        const wireMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.3,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const wire = new THREE.Mesh(wireGeo, wireMat)
+        g.add(wire)
+
+        // Small glow spike
+        const spikeGeo = new THREE.ConeGeometry(0.12, 0.4, 4)
+        const spikeMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const spike = new THREE.Mesh(spikeGeo, spikeMat)
+        spike.rotation.x = Math.PI / 2
+        spike.position.z = 0.2
+        g.add(spike)
+        break
+      }
+    }
   }
 
   private tickCampaign(dt: number, near: THREE.Vector3) {
@@ -845,6 +1294,10 @@ export class CombatSystem {
       if (!m.isMesh) return
       if (Array.isArray(m.material)) m.material = m.material.map((mat) => mat.clone())
       else m.material = m.material.clone()
+      // Enemies don't cast shadows — negligible visual impact, saves one shadow
+      // map render per enemy (huge when many ships are on screen).
+      m.castShadow = false
+      m.receiveShadow = false
       const mat = m.material as THREE.MeshStandardMaterial
       if (!mat || !('color' in mat)) return
       // Light faction tint — keep Quaternius albedo readable
@@ -892,11 +1345,12 @@ export class CombatSystem {
       e.cooldown -= dt
       e.wander += dt
 
-      const toPlayer = this.tmp.copy(player.position).sub(e.group.position)
-      const dist = toPlayer.length()
-      const dir = toPlayer.normalize()
+      const dir = this.tmp.copy(player.position).sub(e.group.position)
+      const dist = dir.length()
+      dir.normalize()
 
-      let desired = new THREE.Vector3()
+      let desired = this.tmp3
+      desired.set(0, 0, 0)
       switch (e.def.ai) {
         case 'dogfight':
           desired.copy(dir).multiplyScalar(e.def.speed * (dist > 160 ? 1.35 : 1))
@@ -944,7 +1398,7 @@ export class CombatSystem {
       const sep = this.tmp2.copy(player.position).sub(e.group.position)
       const sepDist = sep.length()
       if (sepDist < 0.001) {
-        e.group.position.add(new THREE.Vector3(keepOut, 0, 0))
+        e.group.position.x += keepOut
       } else if (sepDist < keepOut) {
         sep.multiplyScalar(1 / sepDist)
         const push = keepOut - sepDist
@@ -992,12 +1446,34 @@ export class CombatSystem {
   }
 
   private updateProjectiles(dt: number, player: THREE.Object3D, _playerVel: THREE.Vector3 | null) {
+    // Build a coarse spatial grid of enemies for O(1) hit lookups.
+    // Cell size ~20 units — most enemy hit radii are <12 so 1-2 cells per bullet.
+    const GRID = 20
+    const grid = new Map<string, CombatEnemy[]>()
+    const gridKey = (x: number, y: number, z: number) =>
+      `${(x / GRID) | 0},${(y / GRID) | 0},${(z / GRID) | 0}`
+    for (const e of this.enemies) {
+      if (!e.alive) continue
+      const p = e.group.position
+      const key = gridKey(p.x, p.y, p.z)
+      let bucket = grid.get(key)
+      if (!bucket) {
+        bucket = []
+        grid.set(key, bucket)
+      }
+      bucket.push(e)
+    }
+
     for (const p of this.projectiles) {
       if (!p.active) continue
       p.life -= dt
       if (p.life <= 0) {
         p.active = false
         p.mesh.visible = false
+        p.missileGroup.visible = false
+      p.bodyGroup.visible = false
+        p.glow.visible = false
+        p.trail!.visible = false
         continue
       }
 
@@ -1011,25 +1487,76 @@ export class CombatSystem {
       }
 
       p.mesh.position.addScaledVector(p.velocity, dt)
+      p.mesh.lookAt(p.mesh.position.clone().add(p.velocity))
+      p.glow.position.copy(p.mesh.position)
+
+      // Missile / 3D body follows same position + faces velocity
+      if (p.missileGroup.visible) {
+        p.missileGroup.position.copy(p.mesh.position)
+        p.missileGroup.lookAt(p.mesh.position.clone().add(p.velocity))
+      }
+      if (p.bodyGroup.visible) {
+        p.bodyGroup.position.copy(p.mesh.position)
+        p.bodyGroup.lookAt(p.mesh.position.clone().add(p.velocity))
+      }
+
+      // Pulsing glow — oscillation makes projectiles feel alive
+      p.glowPhase += dt * 12
+
+      // Trail: shift all positions forward, add new at current
+      {
+        const pos = p.mesh.position
+        const arr = p.trailPos
+        const idx = p.trailIdx
+        arr[idx * 3] = pos.x
+        arr[idx * 3 + 1] = pos.y
+        arr[idx * 3 + 2] = pos.z
+        p.trailIdx = (idx + 1) % 16
+        p.trail!.geometry.attributes.position.needsUpdate = true
+      }
 
       if (p.fromPlayer) {
-        for (const e of this.enemies) {
-          if (!e.alive || p.hit.has(e.id)) continue
-          if (p.mesh.position.distanceTo(e.group.position) < p.radius + 8.5 * e.def.scale) {
-            this.damageEnemy(e, p.damage)
-            p.hit.add(e.id)
-            if (!p.pierce) {
-              p.active = false
-              p.mesh.visible = false
-              break
+        // Check only the 3x3x3 cells around the bullet
+        const pos = p.mesh.position
+        const cx = (pos.x / GRID) | 0
+        const cy = (pos.y / GRID) | 0
+        const cz = (pos.z / GRID) | 0
+        let hitSomething = false
+        for (let dx = -1; dx <= 1 && !hitSomething; dx++) {
+          for (let dy = -1; dy <= 1 && !hitSomething; dy++) {
+            for (let dz = -1; dz <= 1 && !hitSomething; dz++) {
+              const key = `${cx + dx},${cy + dy},${cz + dz}`
+              const bucket = grid.get(key)
+              if (!bucket) continue
+              for (const e of bucket) {
+                if (!e.alive || p.hit.has(e.id)) continue
+                const r = p.radius + 8.5 * e.def.scale
+                if (pos.distanceToSquared(e.group.position) < r * r) {
+                  this.damageEnemy(e, p.damage)
+                  p.hit.add(e.id)
+                  if (!p.pierce) {
+                    p.active = false
+                    p.mesh.visible = false
+                    p.missileGroup.visible = false
+      p.bodyGroup.visible = false
+                    p.glow.visible = false
+                    p.trail!.visible = false
+                    hitSomething = true
+                    break
+                  }
+                }
+              }
             }
           }
         }
-      } else if (p.mesh.position.distanceTo(player.position) < p.radius + 3.2) {
-        this.fx.spawnHitSpark(p.mesh.position.clone(), 0xff6644)
-        this.damagePlayer(p.damage, p.mesh.position)
-        p.active = false
-        p.mesh.visible = false
+      } else {
+        const r = p.radius + 3.2
+        if (p.mesh.position.distanceToSquared(player.position) < r * r) {
+          this.fx.spawnHitSpark(p.mesh.position.clone(), 0xff6644)
+          this.damagePlayer(p.damage, p.mesh.position)
+          p.active = false
+          p.mesh.visible = false
+        }
       }
     }
   }
@@ -1233,6 +1760,8 @@ export class CombatSystem {
     for (const p of this.projectiles) {
       p.active = false
       p.mesh.visible = false
+      p.missileGroup.visible = false
+      p.bodyGroup.visible = false
     }
   }
 
