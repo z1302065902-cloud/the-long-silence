@@ -46,6 +46,7 @@ export type WeaponUpgradeId =
   | 'dmg_missile'
   | 'dmg_rail'
   | 'dmg_flak'
+  | 'dmg_mine'
   | 'rof_all'
   | 'shield_boost'
   | 'hull_boost'
@@ -64,6 +65,7 @@ export const WEAPON_UPGRADES: WeaponUpgradeDef[] = [
   { id: 'dmg_missile', title: '弹头装填', blurb: '导弹伤害 +22%' },
   { id: 'dmg_rail', title: '轨道过载', blurb: '轨道炮伤害 +20%' },
   { id: 'dmg_flak', title: '霰射扩容', blurb: '高射炮伤害 +25%' },
+  { id: 'dmg_mine', title: '雷管增装', blurb: '布雷器爆炸伤害 +25%' },
   { id: 'rof_all', title: '冷却回路', blurb: '全武器射速 +10%' },
   { id: 'shield_boost', title: '护盾电容', blurb: '最大护盾 +20' },
   { id: 'hull_boost', title: '装甲加固', blurb: '最大船体 +25' },

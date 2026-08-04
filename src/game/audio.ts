@@ -3,7 +3,7 @@
  * No downloads needed; everything synthesized at runtime.
  */
 
-type SfxKind = 'fire' | 'fire_pulse' | 'fire_plasma' | 'fire_missile' | 'fire_rail' | 'fire_flak' | 'hit' | 'boom' | 'pickup' | 'ui' | 'damage' | 'clear'
+type SfxKind = 'fire' | 'fire_pulse' | 'fire_plasma' | 'fire_missile' | 'fire_rail' | 'fire_flak' | 'fire_mine' | 'hit' | 'boom' | 'pickup' | 'ui' | 'damage' | 'clear' | 'boss'
 
 // A-minor space progression: Am — F — C — G (2 bars each)
 const CHORDS: number[][] = [
@@ -307,6 +307,30 @@ export class GameAudio {
         this.tone({ freq: 160, endFreq: 55, dur: 0.32, gain: 0.28, type: 'sawtooth', attack: 0.003, release: 0.28, filter: 1400 })
         this.tone({ freq: 50, endFreq: 30, dur: 0.25, gain: 0.12, type: 'sine', attack: 0.005, release: 0.2 })
         this.noise(0.22, 0.15, 600)
+        break
+      }
+      case 'fire_mine': {
+        // Soft pneumatic clunk — laying a mine
+        this.tone({
+          freq: 240,
+          endFreq: 110,
+          dur: 0.14,
+          gain: 0.14,
+          type: 'square',
+          attack: 0.002,
+          release: 0.12,
+          filter: 900,
+          filterEnd: 300,
+        })
+        this.noise(0.08, 0.04, 1400, 'highpass')
+        break
+      }
+      case 'boss': {
+        // Dramatic sting — low riser + metallic hit when a boss enters
+        this.tone({ freq: 55, endFreq: 82, dur: 0.9, gain: 0.32, type: 'sawtooth', attack: 0.02, release: 0.8, filter: 400 })
+        this.tone({ freq: 220, endFreq: 330, dur: 0.7, gain: 0.14, type: 'triangle', attack: 0.03, release: 0.6 })
+        this.tone({ freq: 660, endFreq: 990, dur: 0.5, gain: 0.09, type: 'sine', attack: 0.05, release: 0.45 })
+        this.noise(0.5, 0.12, 500)
         break
       }
       case 'clear': {

@@ -12,7 +12,7 @@ export type UpgradeState = {
 
 export function createUpgradeState(): UpgradeState {
   return {
-    dmgMul: { pulse: 1, plasma: 1, missile: 1, rail: 1, flak: 1 },
+    dmgMul: { pulse: 1, plasma: 1, missile: 1, rail: 1, flak: 1, mine: 1 },
     rofMul: 1,
     shieldBonus: 0,
     hullBonus: 0,
@@ -41,6 +41,9 @@ export function applyUpgrade(state: UpgradeState, id: WeaponUpgradeId): UpgradeS
       break
     case 'dmg_flak':
       s.dmgMul.flak *= 1.25
+      break
+    case 'dmg_mine':
+      s.dmgMul.mine *= 1.25
       break
     case 'rof_all':
       s.rofMul *= 1.1

@@ -541,3 +541,104 @@ body,
     display: none;
   }
 }
+
+/* ---------- touch controls (mobile) ---------- */
+
+#c,
+#hud {
+  touch-action: none;
+}
+
+#touch-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: none;
+}
+
+@media (pointer: coarse) {
+  #touch-ui {
+    display: block;
+  }
+}
+
+#touch-joy {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 1px solid rgba(200, 212, 224, 0.22);
+  background: radial-gradient(circle, rgba(78, 205, 196, 0.08), rgba(8, 12, 18, 0.3));
+  pointer-events: auto;
+  touch-action: none;
+  --jx: 0px;
+  --jy: 0px;
+}
+
+#touch-joy::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(78, 205, 196, 0.32);
+  border: 1px solid rgba(78, 205, 196, 0.55);
+  transform: translate(calc(-50% + var(--jx)), calc(-50% + var(--jy)));
+  transition: transform 0.05s linear;
+}
+
+.touch-btn {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  border-radius: 50%;
+  border: 1px solid rgba(200, 212, 224, 0.28);
+  background: rgba(20, 28, 38, 0.55);
+  color: var(--fog);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  user-select: none;
+  -webkit-user-select: none;
+  backdrop-filter: blur(4px);
+}
+
+.touch-btn:active {
+  background: rgba(78, 205, 196, 0.3);
+  border-color: rgba(78, 205, 196, 0.6);
+}
+
+#touch-fire {
+  right: 20px;
+  bottom: 24px;
+  width: 86px;
+  height: 86px;
+  border-color: rgba(255, 107, 107, 0.55);
+  color: #ffe0e0;
+}
+
+#touch-alt {
+  right: 120px;
+  bottom: 34px;
+  width: 66px;
+  height: 66px;
+}
+
+#touch-act {
+  right: 20px;
+  bottom: 124px;
+  width: 66px;
+  height: 66px;
+}
+
+#touch-exit {
+  right: 120px;
+  bottom: 124px;
+  width: 66px;
+  height: 66px;
+}

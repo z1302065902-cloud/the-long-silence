@@ -454,7 +454,7 @@ export class Game {
     const { body, altitude } = this.world.nearestBody(this.ship.group.position)
     const dockDist = this.ship.group.position.distanceTo(this.world.stationDockPoint())
 
-    let prompt: string | null = 'SPACE fire · RMB/N missile · 1–5 weapons · Tab target'
+    let prompt: string | null = 'SPACE fire · RMB/N missile · 1–6 weapons · Tab target'
     if (body && altitude < 35) prompt = `Near ${body.name} · press L to land`
     if (dockDist < 40) prompt = 'Station docking range · press G to dock'
     this.hud.setPrompt(prompt)

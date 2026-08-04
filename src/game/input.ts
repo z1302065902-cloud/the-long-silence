@@ -66,6 +66,27 @@ export class InputManager {
   private bound = false
   private mouseButtons = new Set<number>()
 
+  // touch / mobile
+  private joyEl: HTMLElement | null = null
+  private fireEl: HTMLElement | null = null
+  private altEl: HTMLElement | null = null
+  private actEl: HTMLElement | null = null
+  private exitEl: HTMLElement | null = null
+  private readonly joyRadius = 60
+  private touchJoyActive = false
+  private joyTouchId = -1
+  private joyBaseX = 0
+  private joyBaseY = 0
+  private joyX = 0
+  private joyY = 0
+  private touchFire = false
+  private touchAlt = false
+  private touchActEdge = false
+  private touchExitEdge = false
+  private lookTouchId = -1
+  private lastLookX = 0
+  private lastLookY = 0
+
   constructor(element: HTMLElement) {
     this.element = element
   }
@@ -87,7 +108,33 @@ export class InputManager {
     window.addEventListener('mousedown', this.onMouseDown)
     window.addEventListener('mouseup', this.onMouseUp)
     document.addEventListener('pointerlockchange', this.onPointerLockChange)
-    this.element.addEventListener('click', this.requestPointerLock)
+    // Touch never requests pointer lock — that would hijack the phone screen.
+    this.element.addEventListener('click', this.onCanvasClick)
+
+    // Touch controls (no-ops on desktop where the elements don't exist)
+    this.joyEl = document.getElementById('touch-joy')
+    this.fireEl = document.getElementById('touch-fire')
+    this.altEl = document.getElementById('touch-alt')
+    this.actEl = document.getElementById('touch-act')
+    this.exitEl = document.getElementById('touch-exit')
+    if (this.joyEl) {
+      this.joyEl.addEventListener('touchstart', this.onJoyStart, { passive: false })
+      this.joyEl.addEventListener('touchmove', this.onJoyMove, { passive: false })
+      this.joyEl.addEventListener('touchend', this.onJoyEnd)
+      this.joyEl.addEventListener('touchcancel', this.onJoyEnd)
+    }
+    for (const el of [this.fireEl, this.altEl, this.actEl, this.exitEl]) {
+      if (el) {
+        el.addEventListener('touchstart', this.onTouchBtnDown, { passive: false })
+        el.addEventListener('touchend', this.onTouchBtnUp, { passive: false })
+        el.addEventListener('touchcancel', this.onTouchBtnUp)
+      }
+    }
+    // Canvas drag = look (only touches that aren't on controls land here).
+    this.element.addEventListener('touchstart', this.onCanvasTouchStart, { passive: false })
+    this.element.addEventListener('touchmove', this.onCanvasTouchMove, { passive: false })
+    this.element.addEventListener('touchend', this.onCanvasTouchEnd)
+    this.element.addEventListener('touchcancel', this.onCanvasTouchEnd)
   }
 
   detach(): void {
@@ -99,7 +146,24 @@ export class InputManager {
     window.removeEventListener('mousedown', this.onMouseDown)
     window.removeEventListener('mouseup', this.onMouseUp)
     document.removeEventListener('pointerlockchange', this.onPointerLockChange)
-    this.element.removeEventListener('click', this.requestPointerLock)
+    this.element.removeEventListener('click', this.onCanvasClick)
+    if (this.joyEl) {
+      this.joyEl.removeEventListener('touchstart', this.onJoyStart)
+      this.joyEl.removeEventListener('touchmove', this.onJoyMove)
+      this.joyEl.removeEventListener('touchend', this.onJoyEnd)
+      this.joyEl.removeEventListener('touchcancel', this.onJoyEnd)
+    }
+    for (const el of [this.fireEl, this.altEl, this.actEl, this.exitEl]) {
+      if (el) {
+        el.removeEventListener('touchstart', this.onTouchBtnDown)
+        el.removeEventListener('touchend', this.onTouchBtnUp)
+        el.removeEventListener('touchcancel', this.onTouchBtnUp)
+      }
+    }
+    this.element.removeEventListener('touchstart', this.onCanvasTouchStart)
+    this.element.removeEventListener('touchmove', this.onCanvasTouchMove)
+    this.element.removeEventListener('touchend', this.onCanvasTouchEnd)
+    this.element.removeEventListener('touchcancel', this.onCanvasTouchEnd)
     if (document.pointerLockElement === this.element) {
       document.exitPointerLock()
     }
@@ -126,21 +190,29 @@ export class InputManager {
     this.state.mouseScreenY = this.mouseScreenY
     this.state.land = this.edges.has('KeyL')
     this.state.dock = this.edges.has('KeyG')
-    this.state.interact = this.walkMode && this.edges.has('KeyE')
-    this.state.exit = this.edges.has('KeyX')
+    this.state.interact = this.walkMode && (this.edges.has('KeyE') || this.touchActEdge)
+    this.state.exit = this.edges.has('KeyX') || this.touchExitEdge
     this.state.fire =
-      this.keys.has('Space') || this.mouseButtons.has(0) || this.keys.has('KeyV')
+      this.keys.has('Space') ||
+      this.mouseButtons.has(0) ||
+      this.keys.has('KeyV') ||
+      this.touchFire
     this.state.altFire =
-      this.mouseButtons.has(2) || this.keys.has('KeyB') || this.keys.has('KeyN')
+      this.mouseButtons.has(2) ||
+      this.keys.has('KeyB') ||
+      this.keys.has('KeyN') ||
+      this.touchAlt
     this.state.cycleWeapon = this.edges.has('KeyC')
     this.state.cycleTarget = this.edges.has('Tab')
     this.state.weaponSlot = null
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       if (this.edges.has(`Digit${i + 1}`)) this.state.weaponSlot = i
     }
     this.pendingLookX = 0
     this.pendingLookY = 0
     this.edges.clear()
+    this.touchActEdge = false
+    this.touchExitEdge = false
     return { ...this.state }
   }
 
@@ -173,6 +245,12 @@ export class InputManager {
     if (!this.walkMode) {
       if (this.keys.has('KeyQ')) roll += 1
       if (this.keys.has('KeyE')) roll -= 1
+    }
+
+    // Touch joystick overrides keyboard movement when active
+    if (this.touchJoyActive) {
+      forward = -this.joyY
+      strafe = this.joyX
     }
 
     this.state.forward = forward
@@ -211,6 +289,120 @@ export class InputManager {
       if (rect.width > 0 && rect.height > 0) {
         this.mouseScreenX = (event.clientX - rect.left) / rect.width
         this.mouseScreenY = (event.clientY - rect.top) / rect.height
+      }
+    }
+  }
+
+  private onCanvasClick = (event: MouseEvent): void => {
+    // Touch taps must not grab pointer lock — that hijacks the phone screen.
+    if ((event as PointerEvent).pointerType === 'touch') return
+    this.requestPointerLock()
+  }
+
+  // ---- touch controls ----
+
+  private setJoyKnob(dx: number, dy: number) {
+    if (this.joyEl) {
+      this.joyEl.style.setProperty('--jx', `${dx}px`)
+      this.joyEl.style.setProperty('--jy', `${dy}px`)
+    }
+  }
+
+  private onJoyStart = (e: TouchEvent): void => {
+    if (this.touchJoyActive) return
+    const t = e.changedTouches[0]
+    if (!t) return
+    this.touchJoyActive = true
+    this.joyTouchId = t.identifier
+    this.joyBaseX = t.clientX
+    this.joyBaseY = t.clientY
+    this.joyX = 0
+    this.joyY = 0
+    this.setJoyKnob(0, 0)
+    e.preventDefault()
+  }
+
+  private onJoyMove = (e: TouchEvent): void => {
+    if (!this.touchJoyActive) return
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i]
+      if (t.identifier !== this.joyTouchId) continue
+      let dx = t.clientX - this.joyBaseX
+      let dy = t.clientY - this.joyBaseY
+      const len = Math.hypot(dx, dy)
+      if (len > this.joyRadius) {
+        dx = (dx / len) * this.joyRadius
+        dy = (dy / len) * this.joyRadius
+      }
+      this.joyX = dx / this.joyRadius
+      this.joyY = dy / this.joyRadius
+      this.setJoyKnob(dx, dy)
+      break
+    }
+    e.preventDefault()
+  }
+
+  private onJoyEnd = (e: TouchEvent): void => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === this.joyTouchId) {
+        this.touchJoyActive = false
+        this.joyTouchId = -1
+        this.joyX = 0
+        this.joyY = 0
+        this.setJoyKnob(0, 0)
+        break
+      }
+    }
+  }
+
+  private onTouchBtnDown = (e: TouchEvent): void => {
+    const id = (e.currentTarget as HTMLElement).id
+    if (id === 'touch-fire') this.touchFire = true
+    else if (id === 'touch-alt') this.touchAlt = true
+    else if (id === 'touch-act') this.touchActEdge = true
+    else if (id === 'touch-exit') this.touchExitEdge = true
+    e.preventDefault()
+  }
+
+  private onTouchBtnUp = (e: TouchEvent): void => {
+    const id = (e.currentTarget as HTMLElement).id
+    if (id === 'touch-fire') this.touchFire = false
+    else if (id === 'touch-alt') this.touchAlt = false
+    e.preventDefault()
+  }
+
+  private onCanvasTouchStart = (e: TouchEvent): void => {
+    if (this.lookTouchId !== -1) return
+    const t = e.changedTouches[0]
+    if (!t) return
+    this.lookTouchId = t.identifier
+    this.lastLookX = t.clientX
+    this.lastLookY = t.clientY
+    e.preventDefault()
+  }
+
+  private onCanvasTouchMove = (e: TouchEvent): void => {
+    if (this.lookTouchId === -1) return
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i]
+      if (t.identifier !== this.lookTouchId) continue
+      const dx = t.clientX - this.lastLookX
+      const dy = t.clientY - this.lastLookY
+      this.lastLookX = t.clientX
+      this.lastLookY = t.clientY
+      // One screen-width drag ≈ 180° turn; scales with the settings sensitivity.
+      this.pendingLookX += dx * 0.006 * this.sensitivityMul
+      this.pendingLookY += dy * 0.006 * this.sensitivityMul
+      break
+    }
+    e.preventDefault()
+  }
+
+  private onCanvasTouchEnd = (e: TouchEvent): void => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === this.lookTouchId) {
+        this.lookTouchId = -1
+        break
       }
     }
   }

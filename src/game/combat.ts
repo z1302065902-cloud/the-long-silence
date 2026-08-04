@@ -11,7 +11,7 @@ import {
 import { FxSystem } from './fx'
 import { foldUpgrades, scaleWeapon, type UpgradeState } from './upgrades'
 
-export type WeaponId = 'pulse' | 'plasma' | 'missile' | 'rail' | 'flak'
+export type WeaponId = 'pulse' | 'plasma' | 'missile' | 'rail' | 'flak' | 'mine'
 
 export type WeaponDef = {
   id: WeaponId
@@ -85,6 +85,16 @@ export const WEAPONS: WeaponDef[] = [
     spread: 0.22,
     count: 7,
   },
+  {
+    id: 'mine',
+    name: 'MINE LAYER',
+    cooldown: 0.85,
+    damage: 90,
+    speed: 0,
+    life: 6,
+    color: 0x88ff88,
+    radius: 1.6,
+  },
 ]
 
 type Projectile = {
@@ -121,6 +131,7 @@ export type EnemyKind =
   | 'carrier'
   | 'phantom'
   | 'warden'
+  | 'kamikaze'
 
 type EnemyDef = {
   kind: EnemyKind
@@ -133,7 +144,7 @@ type EnemyDef = {
   color: number
   weapon: WeaponId
   score: number
-  ai: 'dogfight' | 'strafe' | 'sniper' | 'tank' | 'swarm'
+  ai: 'dogfight' | 'strafe' | 'sniper' | 'tank' | 'swarm' | 'kamikaze'
 }
 
 /** Quaternius hulls — more varieties, keep textures readable. */
@@ -294,6 +305,19 @@ const ENEMY_DEFS: EnemyDef[] = [
     score: 240,
     ai: 'strafe',
   },
+  {
+    kind: 'kamikaze',
+    label: 'Rage Runner',
+    craft: 'Bob.glb',
+    pack: 'quaternius',
+    hp: 34,
+    speed: 72,
+    scale: 0.75,
+    color: 0xff3322,
+    weapon: 'pulse',
+    score: 130,
+    ai: 'kamikaze',
+  },
 ]
 
 export type CombatEnemy = {
@@ -345,7 +369,7 @@ export class CombatSystem {
   onKillReward: ((score: number) => void) | null = null
   onLevelClear: ((level: number, reward: WeaponUpgradeId) => void) | null = null
   onPickup: ((label: string) => void) | null = null
-  onSfx: ((kind: 'fire' | 'fire_pulse' | 'fire_plasma' | 'fire_missile' | 'fire_rail' | 'fire_flak' | 'hit' | 'boom' | 'pickup' | 'damage' | 'clear') => void) | null = null
+  onSfx: ((kind: 'fire' | 'fire_pulse' | 'fire_plasma' | 'fire_missile' | 'fire_rail' | 'fire_flak' | 'fire_mine' | 'hit' | 'boom' | 'pickup' | 'damage' | 'clear' | 'boss') => void) | null = null
   private weaponCd = 0
   private charge = 0
   private projectiles: Projectile[] = []
@@ -849,6 +873,22 @@ export class CombatSystem {
         trailMat.opacity = 0.3
         break
       }
+      case 'mine': {
+        // Proximity mine — stationary, spikes + pulsing ring
+        p.mesh.visible = false
+        p.missileGroup.visible = false
+        p.bodyGroup.visible = false
+        this.buildBodyForWeapon('mine', p.bodyGroup)
+        p.bodyGroup.visible = true
+        p.bodyGroup.position.copy(opts.origin)
+        p.bodyGroup.scale.setScalar(1)
+        p.glow.scale.set(4, 4, 1)
+        glowMat.opacity = 0.6
+        trailMat.color.setHex(0x88ff88)
+        trailMat.size = 0.3
+        trailMat.opacity = 0.3
+        break
+      }
       default:
         p.mesh.scale.setScalar(w.radius)
     }
@@ -1137,6 +1177,46 @@ export class CombatSystem {
         g.add(spike)
         break
       }
+      case 'mine': {
+        // Proximity mine — faceted core + radial spikes + pulsing ring
+        const coreGeo = new THREE.IcosahedronGeometry(0.6, 1)
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: 0x88ff88,
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const core = new THREE.Mesh(coreGeo, coreMat)
+        g.add(core)
+
+        const spikeGeo = new THREE.ConeGeometry(0.14, 0.9, 6)
+        const spikeMat = new THREE.MeshBasicMaterial({
+          color: 0xccffcc,
+          transparent: true,
+          opacity: 0.8,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        for (let i = 0; i < 6; i++) {
+          const spike = new THREE.Mesh(spikeGeo, spikeMat)
+          spike.rotation.set((i * Math.PI) / 3, i * 0.6, Math.PI / 2)
+          g.add(spike)
+        }
+
+        const ringGeo = new THREE.TorusGeometry(0.95, 0.05, 8, 24)
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0x88ff88,
+          transparent: true,
+          opacity: 0.5,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const ring = new THREE.Mesh(ringGeo, ringMat)
+        ring.name = 'mring'
+        g.add(ring)
+        break
+      }
     }
   }
 
@@ -1262,6 +1342,7 @@ export class CombatSystem {
       fireRateMul: b.fireRateMul,
       dist: 200,
     })
+    this.onSfx?.('boss')
   }
 
   private completeLevel() {
@@ -1377,11 +1458,17 @@ export class CombatSystem {
           desired.x += Math.sin(e.wander * 5) * 30
           desired.y += Math.cos(e.wander * 4) * 24
           break
+        case 'kamikaze':
+          // Straight-line charge — fast, minimal jink, never shoots.
+          desired.copy(dir).multiplyScalar(e.def.speed * (dist > 120 ? 1.5 : 1.15))
+          desired.addScaledVector(this.sideJink(e), e.def.speed * 0.12)
+          break
       }
 
-      // Standoff radius scales with hull size (bosses are huge)
-      const keepOut = (e.isBoss ? 34 : 18) + e.def.scale * 15
-      if (dist < keepOut * 1.55) {
+      // Standoff radius scales with hull size (bosses are huge); kamikaze dives in.
+      const keepOut =
+        e.def.ai === 'kamikaze' ? 8 : (e.isBoss ? 34 : 18) + e.def.scale * 15
+      if (e.def.ai !== 'kamikaze' && dist < keepOut * 1.55) {
         desired.copy(dir).multiplyScalar(-Math.max(e.def.speed, 34) * 1.5)
         desired.addScaledVector(this.sideJink(e), e.def.speed * 1.05)
       }
@@ -1414,11 +1501,21 @@ export class CombatSystem {
       // face player
       e.group.lookAt(player.position)
 
+      // Kamikaze contact detonation — rams the player and self-destructs.
+      if (e.def.ai === 'kamikaze') {
+        const d = e.group.position.distanceTo(player.position)
+        if (d < 20) {
+          this.damagePlayer(60 * (e.dmgMul ?? 1), e.group.position.clone())
+          this.damageEnemy(e, e.hp)
+          continue
+        }
+      }
+
       const w = WEAPONS.find((x) => x.id === e.def.weapon)!
       const fightDist = e.group.position.distanceTo(player.position)
       const range =
         e.def.ai === 'sniper' ? 280 : e.def.ai === 'tank' || e.isBoss ? 200 : e.def.weapon === 'missile' ? 200 : 130
-      if (e.cooldown <= 0 && fightDist < range && fightDist > keepOut * 0.85) {
+      if (e.def.ai !== 'kamikaze' && e.cooldown <= 0 && fightDist < range && fightDist > keepOut * 0.85) {
         const lead = this.tmp
           .copy(player.position)
           .addScaledVector(playerVel, fightDist / Math.max(w.speed, 1))
@@ -1487,21 +1584,28 @@ export class CombatSystem {
       }
 
       p.mesh.position.addScaledVector(p.velocity, dt)
-      p.mesh.lookAt(p.mesh.position.clone().add(p.velocity))
       p.glow.position.copy(p.mesh.position)
 
-      // Missile / 3D body follows same position + faces velocity
+      // Missile / 3D body follows same position + faces velocity.
+      // Stationary projectiles (mines) skip lookAt — a zero direction yields NaN.
+      if (p.velocity.lengthSq() > 1e-6) {
+        p.mesh.lookAt(p.mesh.position.clone().add(p.velocity))
+      }
       if (p.missileGroup.visible) {
         p.missileGroup.position.copy(p.mesh.position)
-        p.missileGroup.lookAt(p.mesh.position.clone().add(p.velocity))
+        if (p.velocity.lengthSq() > 1e-6) p.missileGroup.lookAt(p.mesh.position.clone().add(p.velocity))
       }
       if (p.bodyGroup.visible) {
         p.bodyGroup.position.copy(p.mesh.position)
-        p.bodyGroup.lookAt(p.mesh.position.clone().add(p.velocity))
+        if (p.velocity.lengthSq() > 1e-6) p.bodyGroup.lookAt(p.mesh.position.clone().add(p.velocity))
       }
 
       // Pulsing glow — oscillation makes projectiles feel alive
       p.glowPhase += dt * 12
+      // Mines pulse outward — reads as "armed"
+      if (p.weaponId === 'mine' && p.bodyGroup.visible) {
+        p.bodyGroup.scale.setScalar(0.9 + 0.12 * Math.sin(p.glowPhase))
+      }
 
       // Trail: shift all positions forward, add new at current
       {
@@ -1516,6 +1620,36 @@ export class CombatSystem {
       }
 
       if (p.fromPlayer) {
+        // Proximity mine — detonate when any enemy enters the blast radius
+        if (p.weaponId === 'mine') {
+          const MINE_BLAST = 30
+          const mpos = p.mesh.position
+          let det = false
+          for (const e of this.enemies) {
+            if (!e.alive) continue
+            if (mpos.distanceToSquared(e.group.position) < MINE_BLAST * MINE_BLAST) {
+              det = true
+              break
+            }
+          }
+          if (det) {
+            this.fx.spawnExplosion(mpos.clone(), { scale: 1.6, color: 0x88ff88, big: false })
+            this.onSfx?.('boom')
+            for (const e of this.enemies) {
+              if (!e.alive) continue
+              if (mpos.distanceToSquared(e.group.position) < MINE_BLAST * MINE_BLAST) {
+                this.damageEnemy(e, p.damage)
+              }
+            }
+            p.active = false
+            p.mesh.visible = false
+            p.missileGroup.visible = false
+            p.bodyGroup.visible = false
+            p.glow.visible = false
+            p.trail!.visible = false
+          }
+          continue
+        }
         // Check only the 3x3x3 cells around the bullet
         const pos = p.mesh.position
         const cx = (pos.x / GRID) | 0
@@ -1703,6 +1837,7 @@ export class CombatSystem {
         2: 'dmg_missile',
         3: 'dmg_rail',
         4: 'dmg_flak',
+        5: 'dmg_mine',
       }
       id = map[this.weaponIndex] ?? 'dmg_pulse'
       label = '射击升级 · 当前武器伤害↑'
