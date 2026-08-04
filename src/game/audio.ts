@@ -331,8 +331,9 @@ export class GameAudio {
   private startMusic() {
     if (this.musicStarted || !this.ctx) return
     this.musicStarted = true
-    if (!this.bgmFailed) this.initBgm()
-    if (!this.bgmReady) this.startSynthFallback()
+    // Real track first — never pre-empt with the synth layer.
+    // Synth only kicks in if the mp3 actually errors out.
+    this.initBgm()
   }
 
   /** Prefer the bundled mp3 track; synth pad is the offline/fallback layer. */
@@ -342,36 +343,48 @@ export class GameAudio {
     el.loop = true
     el.preload = 'auto'
     el.crossOrigin = 'anonymous'
-    // Slow links may take ages to fetch the 3.8MB mp3 — after 9s switch to
-    // the synth layer so music never silently stalls.
-    const giveUp = window.setTimeout(() => {
-      if (this.bgmReady) return
-      this.bgmFailed = true
-      this.startSynthFallback()
-    }, 9000)
     el.addEventListener('error', () => {
       if (this.bgmFailed || this.bgmReady) return
-      window.clearTimeout(giveUp)
       this.bgmFailed = true
       this.startSynthFallback()
     })
     el.addEventListener('canplaythrough', () => {
-      if (this.bgmFailed || this.bgmReady) return
-      window.clearTimeout(giveUp)
+      if (this.bgmReady) return
       this.bgmReady = true
+      // Hand off from synth (if it briefly started) to the real track
       this.useSynth = false
       this.bgmEl = el
-      void el.play().catch(() => {
+      void el.play().then(() => {
+        // Guard against external pauses — keep the track rolling
+        el.addEventListener(
+          'pause',
+          () => {
+            if (this.bgmReady && !el.ended) void el.play().catch(() => {})
+          },
+          { once: true },
+        )
+      }).catch(() => {
+        this.bgmReady = false
+        this.bgmEl = null
         this.bgmFailed = true
         this.startSynthFallback()
       })
     })
+    // Resume if the browser suspends the element (tab switch etc.)
+    el.addEventListener(
+      'pause',
+      () => {
+        if (this.bgmReady && !el.ended) void el.play().catch(() => {})
+      },
+    )
     try {
       const node = this.ctx.createMediaElementSource(el)
       node.connect(this.musicGain)
     } catch {
+      // Element already has a MediaElementSource (re-entry) — fall back to synth
       this.bgmFailed = true
       this.startSynthFallback()
+      return
     }
     el.load()
   }
