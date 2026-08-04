@@ -13,7 +13,7 @@ export class Autopilot {
   private tmp = new THREE.Vector3()
   private fwd = new THREE.Vector3()
   private issues: string[] = []
-  private lastHp = 100
+  private lastHp = Infinity
   private stuckTimer = 0
   private lastPos = new THREE.Vector3()
 

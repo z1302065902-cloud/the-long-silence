@@ -49,6 +49,7 @@ export class GameAudio {
   private bgmEl: HTMLAudioElement | null = null
   private bgmReady = false
   private bgmFailed = false
+  private keepAliveBound = false
 
   get isEnabled() {
     return this.enabled
@@ -113,6 +114,8 @@ export class GameAudio {
   }
 
   private setupKeepAlive() {
+    if (this.keepAliveBound) return
+    this.keepAliveBound = true
     const resume = () => { if (this.ctx?.state === 'suspended') void this.ctx?.resume() }
     document.addEventListener('visibilitychange', resume)
     window.addEventListener('focus', resume)

@@ -226,7 +226,7 @@ export const LEVELS: LevelDef[] = Array.from({ length: 20 }, (_, i) => {
   const t = i / 19
   const ch = chapterForLevel(id)
   const waves = 2 + Math.floor(i / 4)
-  const enemiesPerWave = 2 + Math.floor(i / 3)
+  const enemiesPerWave = Math.min(6, 2 + Math.floor(i / 3))
   const killTarget = Math.max(3, waves * enemiesPerWave)
   return {
     id,
@@ -236,13 +236,13 @@ export const LEVELS: LevelDef[] = Array.from({ length: 20 }, (_, i) => {
     brief: LEVEL_BRIEFS[i] ?? ch.blurb,
     waves,
     enemiesPerWave,
-    enemyHpMul: 1 + t * 1.8,
+    enemyHpMul: 1 + t * 1.35,
     enemyDmgMul: 1 + t * 1.4,
     enemySpeedMul: 1 + t * 0.55,
     boss: {
       name: BOSS_NAMES[i],
       craft: BOSS_CRAFTS[i % BOSS_CRAFTS.length],
-      hp: Math.round(420 + i * 95 + i * i * 6),
+      hp: Math.round(420 + i * 140),
       speed: 22 + i * 1.1,
       scale: 1.55 + t * 0.55,
       color: [0xff6644, 0xffaa33, 0x66ddff, 0xff55aa, 0xaaff66, 0xffdd55][i % 6],

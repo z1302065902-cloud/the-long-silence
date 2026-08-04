@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { FilmPass } from 'three/addons/postprocessing/FilmPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
@@ -15,13 +16,16 @@ import { Input } from './input'
 import { createPlayReport, type PlayReport, type PlaySession } from './playtest'
 import { environmentForLevel } from './procedural'
 import { Ship } from './ship'
-import { getSelectedShipId, getShipDef, isShipUnlocked, type ShipDef } from './ships'
+import { addHangarCredits, getSelectedShipId, getShipDef, isShipUnlocked, type ShipDef } from './ships'
 import { SurfaceTerrain } from './terrain'
 import { UiPanels } from './ui-panels'
 import { Walker } from './walker'
 import { World } from './world'
 
 type Mode = 'flight' | 'surface' | 'station'
+
+/** 精炼汇率：每单位货物价值换取机库积分。 */
+const REFINE_RATE = 8
 
 export class Game {
   private renderer: THREE.WebGLRenderer
@@ -58,12 +62,7 @@ export class Game {
   private hullCache = new Map<string, THREE.Group>()
   private equipToken = 0
   readonly audio = gameAudio
-  private ui = new UiPanels({
-    onTutorialLaunch: () => {
-      // Tutorial button doubles as launch — jump straight into combat
-      document.getElementById('launch-btn')?.click()
-    },
-  })
+  private ui: UiPanels
   private pausedHint = false
 
   constructor(canvas: HTMLCanvasElement) {
@@ -79,6 +78,9 @@ export class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.48
     this.renderer.shadowMap.enabled = true
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // Brighter, more reflective PBR — envMap from scene makes metals pop
+    this.scene.environmentIntensity = 0.8
 
     this.scene.fog = new THREE.FogExp2(0x0c1424, 0.000055)
     this.scene.background = new THREE.Color(0x070b14)
@@ -92,21 +94,36 @@ export class Game {
 
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.scene, this.camera))
-    // Keep bloom cheap — explosions/thrusters only
-    this.composer.addPass(
-      new UnrealBloomPass(
-        new THREE.Vector2(window.innerWidth, window.innerHeight),
-        0.32,
-        0.55,
-        0.9,
-      ),
+    // Subtle bloom — half-res, only the brightest parts glow
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth / 2, window.innerHeight / 2),
+      0.45,
+      0.65,
+      0.9,
     )
+    ;(bloomPass as any).threshold = 0.85
+    this.composer.addPass(bloomPass)
     this.composer.addPass(this.godRaysPass)
+    // Film grain — adds "cinematic" texture, cheap (one full-screen triangle)
+    const filmPass = new FilmPass(0.2, false)
+    this.composer.addPass(filmPass)
     this.composer.addPass(new OutputPass())
 
     this.input = new Input(canvas)
     window.addEventListener('resize', this.onResize)
     this.onResize()
+
+    this.ui = new UiPanels({
+      onTutorialLaunch: () => {
+        // Tutorial button doubles as launch — jump straight into combat
+        document.getElementById('launch-btn')?.click()
+      },
+      onSettingsChange: (s) => {
+        this.input.setSensitivityMul(s.lookSensitivity)
+      },
+    })
+    // Apply persisted sensitivity right away — it may pre-date this build.
+    this.input.setSensitivityMul(this.ui.current.lookSensitivity)
 
     const begin = () => {
       if (this.running) return
@@ -499,7 +516,10 @@ export class Game {
     if (this.mode === 'station') {
       prompt = 'Helios Station · Press E to refine cargo · X to undock'
       if (this.input.state.interact && this.cargo > 0) {
-        this.hud.toastMessage(`Refined ${this.cargo} crystals into fuel cells`)
+        const credits = this.cargo * REFINE_RATE
+        addHangarCredits(credits)
+        this.hud.toastMessage(`精炼 ${this.cargo} 晶体 → 机库积分 +${credits}`)
+        gameAudio.play('pickup')
         this.cargo = 0
       } else if (this.input.state.interact) {
         this.hud.toastMessage('Refinery idle — bring crystals from the planets')
@@ -524,6 +544,7 @@ export class Game {
     if (!body) return
     this.mode = 'surface'
     this.landedBodyId = bodyId
+    this.input.setWalkMode(true)
     const dir = this.tmp.copy(this.ship.group.position).sub(body.position).normalize()
     this.walker.placeOnBody(body.position, body.radius, dir)
     this.ship.group.position.copy(body.position).addScaledVector(dir, body.radius + 18)
@@ -551,6 +572,7 @@ export class Game {
     this.landedBodyId = null
     this.clearTerrain()
     this.walker.setTerrain(null)
+    this.input.setWalkMode(true)
     const dock = this.world.stationDockPoint()
     this.ship.group.position.copy(dock).add(new THREE.Vector3(0, 8, 12))
     this.ship.velocity.set(0, 0, 0)
@@ -566,6 +588,7 @@ export class Game {
     this.landedBodyId = null
     this.clearTerrain()
     this.walker.setTerrain(null)
+    this.input.setWalkMode(false)
     this.ship.group.visible = true
     this.hud.toastMessage('Systems online — flight mode')
   }

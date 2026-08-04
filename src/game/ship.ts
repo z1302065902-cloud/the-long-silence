@@ -318,17 +318,36 @@ export class FlightController {
     } else if (input.forward < 0) {
       this.tempForce.addScaledVector(this.forward, input.forward * THRUST_ACCEL * 0.55)
     }
-    if (input.strafe !== 0) {
-      this.tempForce.addScaledVector(this.right, input.strafe * STRAFE_ACCEL * boost)
+
+    // Mouse-position steering (casual / cursor-follow mode).
+    // When pointer is NOT locked, mouse screen position directly drives
+    // strafe + vertical — like a classic arcade top-down / rail shooter.
+    // Center (0.5, 0.5) = neutral; edges = full lateral thrust.
+    let strafeInput = input.strafe
+    let verticalInput = input.vertical
+    if (!input.pointerLocked) {
+      const dx = (input.mouseScreenX - 0.5) * 2 // -1..1
+      const dy = (0.5 - input.mouseScreenY) * 2 // -1..1 (up = positive)
+      // Dead zone in the center so tiny jitters don't cause drift
+      const dz = 0.08
+      const sx = Math.abs(dx) < dz ? 0 : (Math.sign(dx) * (Math.abs(dx) - dz) / (1 - dz))
+      const sy = Math.abs(dy) < dz ? 0 : (Math.sign(dy) * (Math.abs(dy) - dz) / (1 - dz))
+      // Mix with keyboard — whichever has larger magnitude wins per axis
+      strafeInput = Math.max(-1, Math.min(1, strafeInput + sx * 1.2))
+      verticalInput = Math.max(-1, Math.min(1, verticalInput + sy * 1.2))
     }
-    if (input.vertical !== 0) {
-      this.tempForce.addScaledVector(this.up, input.vertical * VERTICAL_ACCEL * boost)
+
+    if (strafeInput !== 0) {
+      this.tempForce.addScaledVector(this.right, strafeInput * STRAFE_ACCEL * boost)
+    }
+    if (verticalInput !== 0) {
+      this.tempForce.addScaledVector(this.up, verticalInput * VERTICAL_ACCEL * boost)
     }
 
     this.thrust.copy(this.tempForce)
 
     const hasTranslationInput =
-      input.forward !== 0 || input.strafe !== 0 || input.vertical !== 0
+      input.forward !== 0 || strafeInput !== 0 || verticalInput !== 0
 
     if (hasTranslationInput) {
       this.velocity.addScaledVector(this.tempForce, dt)
@@ -353,9 +372,15 @@ export class FlightController {
   }
 
   private updateExhaust(dt: number): void {
-    // One thin plume only (right thruster) — left reused as dormant for FPS
-    this.exhaustLeft.points.visible = false
-    const spawnRate = 16 + this.thrustIntensity * 40
+    // Twin symmetric plumes — both thrusters stay visible for a clean silhouette.
+    const spawnRate = (16 + this.thrustIntensity * 40) * 0.6
+    updateParticleSystem(
+      this.exhaustLeft,
+      dt,
+      spawnRate,
+      this.thrustIntensity,
+      this.mesh.quaternion,
+    )
     updateParticleSystem(
       this.exhaustRight,
       dt,
@@ -363,12 +388,14 @@ export class FlightController {
       this.thrustIntensity,
       this.mesh.quaternion,
     )
-    const material = this.exhaustRight.points.material as PointsMaterial
     const hotColor = new Color(0xff8a3d)
     const coolColor = new Color(0x4cc9ff)
-    material.color.copy(hotColor).lerp(coolColor, 1 - this.thrustIntensity)
-    material.size = 0.07 + this.thrustIntensity * 0.07
-    material.opacity = 0.28 + this.thrustIntensity * 0.3
+    for (const points of [this.exhaustLeft.points, this.exhaustRight.points]) {
+      const material = points.material as PointsMaterial
+      material.color.copy(hotColor).lerp(coolColor, 1 - this.thrustIntensity)
+      material.size = 0.07 + this.thrustIntensity * 0.07
+      material.opacity = 0.28 + this.thrustIntensity * 0.3
+    }
   }
 
   private updateCamera(dt: number): void {

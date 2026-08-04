@@ -18,6 +18,9 @@ export interface InputState {
   pointerLocked: boolean
   lookX: number
   lookY: number
+  /** Mouse position on screen, 0..1 (0.5 = center). Used when pointer is NOT locked. */
+  mouseScreenX: number
+  mouseScreenY: number
 }
 
 function createDefaultState(): InputState {
@@ -41,6 +44,8 @@ function createDefaultState(): InputState {
     pointerLocked: false,
     lookX: 0,
     lookY: 0,
+    mouseScreenX: 0.5,
+    mouseScreenY: 0.5,
   }
 }
 
@@ -51,12 +56,26 @@ export class InputManager {
   private readonly state = createDefaultState()
   private pendingLookX = 0
   private pendingLookY = 0
-  private readonly lookSensitivity = 0.0022
+  private lookSensitivity = 0.0032
+  private sensitivityMul = 1
+  private walkMode = false
+  // Mouse-position flight assist: when pointer is NOT locked, mouse screen position
+  // steers the ship (like a twin-stick / casual flight model).
+  private mouseScreenX = 0.5
+  private mouseScreenY = 0.5
   private bound = false
   private mouseButtons = new Set<number>()
 
   constructor(element: HTMLElement) {
     this.element = element
+  }
+
+  setSensitivityMul(mul: number): void {
+    this.sensitivityMul = Math.max(0.4, Math.min(2.2, mul))
+  }
+
+  setWalkMode(on: boolean): void {
+    this.walkMode = on
   }
 
   attach(): void {
@@ -103,9 +122,11 @@ export class InputManager {
     this.state.pointerLocked = document.pointerLockElement === this.element
     this.state.lookX = this.pendingLookX
     this.state.lookY = this.pendingLookY
+    this.state.mouseScreenX = this.mouseScreenX
+    this.state.mouseScreenY = this.mouseScreenY
     this.state.land = this.edges.has('KeyL')
     this.state.dock = this.edges.has('KeyG')
-    this.state.interact = this.edges.has('KeyE')
+    this.state.interact = this.walkMode && this.edges.has('KeyE')
     this.state.exit = this.edges.has('KeyX')
     this.state.fire =
       this.keys.has('Space') || this.mouseButtons.has(0) || this.keys.has('KeyV')
@@ -148,8 +169,11 @@ export class InputManager {
     }
 
     let roll = 0
-    if (this.keys.has('KeyQ')) roll += 1
-    if (this.keys.has('KeyE')) roll -= 1
+    // E double-binds to interact when on foot — only roll in flight.
+    if (!this.walkMode) {
+      if (this.keys.has('KeyQ')) roll += 1
+      if (this.keys.has('KeyE')) roll -= 1
+    }
 
     this.state.forward = forward
     this.state.strafe = strafe
@@ -178,9 +202,17 @@ export class InputManager {
   }
 
   private onMouseMove = (event: MouseEvent): void => {
-    if (document.pointerLockElement !== this.element) return
-    this.pendingLookX += event.movementX * this.lookSensitivity
-    this.pendingLookY += event.movementY * this.lookSensitivity
+    if (document.pointerLockElement === this.element) {
+      this.pendingLookX += event.movementX * this.lookSensitivity * this.sensitivityMul
+      this.pendingLookY += event.movementY * this.lookSensitivity * this.sensitivityMul
+    } else {
+      // Track screen-space mouse position for cursor-follow steering
+      const rect = this.element.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        this.mouseScreenX = (event.clientX - rect.left) / rect.width
+        this.mouseScreenY = (event.clientY - rect.top) / rect.height
+      }
+    }
   }
 
   private onMouseDown = (event: MouseEvent): void => {
@@ -213,6 +245,14 @@ export class Input {
 
   beginFrame(): void {
     Object.assign(this.state, this.manager.consumeFrameState())
+  }
+
+  setSensitivityMul(mul: number): void {
+    this.manager.setSensitivityMul(mul)
+  }
+
+  setWalkMode(on: boolean): void {
+    this.manager.setWalkMode(on)
   }
 
   endFrame(): void {}

@@ -44,7 +44,7 @@ export const WEAPONS: WeaponDef[] = [
     id: 'plasma',
     name: 'PLASMA BOLT',
     cooldown: 0.38,
-    damage: 28,
+    damage: 40,
     speed: 95,
     life: 2.2,
     color: 0xb44cff,
@@ -634,7 +634,8 @@ export class CombatSystem {
       // Soft aim-assist toward lock so pulse/plasma can connect in a dogfight
       if (lock && !w.spread) {
         const to = this.tmp2.copy(lock.group.position).sub(origin).normalize()
-        dir.lerp(to, 0.85).normalize()
+        // 0.72 keeps dogfights asking for a little real aim — tune here if too sticky.
+        dir.lerp(to, 0.72).normalize()
       }
       if (spread > 0) {
         dir.x += (Math.random() - 0.5) * spread
@@ -1154,8 +1155,6 @@ export class CombatSystem {
         save.level = next
         saveCampaign(save)
         this.startLevel(next)
-        this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 40)
-        this.shield = this.shieldMax
       }
       return
     }
@@ -1273,8 +1272,9 @@ export class CombatSystem {
     save.level = Math.min(20, this.level.id + 1)
     saveCampaign(save)
     this.rebuildUpgrades()
-    this.playerHp = Math.min(this.playerMaxHp, this.playerHp)
-    this.shield = Math.min(this.shieldMax, this.shield)
+    // 过关即恢复：护盾回满，船体 +40（上限为当前最大船体）
+    this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 40)
+    this.shield = this.shieldMax
     this.phase = 'clear'
     this.clearTimer = 3.2
     this.onSfx?.('clear')
