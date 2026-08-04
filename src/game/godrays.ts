@@ -35,7 +35,7 @@ const GodRaysShader = {
     uniform float intensity;
     varying vec2 vUv;
 
-    const int SAMPLES = 16;
+    const int SAMPLES = 10;
 
     void main() {
       vec4 base = texture2D(tDiffuse, vUv);

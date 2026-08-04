@@ -288,7 +288,7 @@ function sampleBumpHeight(u: number, v: number, biome: PlanetBiome, seed: number
 export function createPlanetTextures(
   biome: PlanetBiome,
   seed: number,
-  size = 512,
+  size = 1024,
 ): PlanetTextureSet {
   const canvas = document.createElement('canvas')
   canvas.width = size

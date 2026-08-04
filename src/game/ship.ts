@@ -38,17 +38,19 @@ const EXHAUST_PARTICLE_COUNT = 28
 const hullMaterial = new MeshPhysicalMaterial({
   color: 0x8a9bb4,
   metalness: 0.78,
-  roughness: 0.22,
+  roughness: 0.2,
   clearcoat: 0.85,
   clearcoatRoughness: 0.12,
+  envMapIntensity: 1.25,
 })
 
 const accentMaterial = new MeshStandardMaterial({
   color: 0x3f9cff,
   metalness: 0.88,
-  roughness: 0.14,
+  roughness: 0.13,
   emissive: 0x1a4a88,
   emissiveIntensity: 0.55,
+  envMapIntensity: 1.3,
 })
 
 const glassMaterial = new MeshPhysicalMaterial({
@@ -63,6 +65,7 @@ const glassMaterial = new MeshPhysicalMaterial({
   clearcoat: 1,
   clearcoatRoughness: 0.05,
   side: DoubleSide,
+  envMapIntensity: 1.15,
 })
 
 const engineMaterial = new MeshStandardMaterial({
@@ -120,76 +123,133 @@ export function createSpacecraft(): Group {
   const ship = new Group()
   ship.name = 'spacecraft'
 
-  const fuselage = new Mesh(new BoxGeometry(1.1, 0.55, 4.2), hullMaterial)
-  fuselage.castShadow = true
-  fuselage.receiveShadow = true
-  ship.add(fuselage)
-
-  const nose = new Mesh(new ConeGeometry(0.55, 1.4, 8), accentMaterial)
-  nose.rotation.x = Math.PI / 2
-  nose.position.z = -2.75
-  nose.castShadow = true
-  ship.add(nose)
-
-  const spine = new Mesh(new BoxGeometry(0.35, 0.22, 3.2), accentMaterial)
-  spine.position.y = 0.18
-  spine.position.z = 0.15
-  ship.add(spine)
-
-  const wingGeometry = new BoxGeometry(2.8, 0.08, 1.35)
-  const leftWing = new Mesh(wingGeometry, hullMaterial)
-  leftWing.position.set(-1.45, -0.08, 0.55)
-  leftWing.rotation.z = 0.12
-  leftWing.castShadow = true
-  ship.add(leftWing)
-
-  const rightWing = new Mesh(wingGeometry, hullMaterial)
-  rightWing.position.set(1.45, -0.08, 0.55)
-  rightWing.rotation.z = -0.12
-  rightWing.castShadow = true
-  ship.add(rightWing)
-
-  const topStabilizer = new Mesh(new BoxGeometry(1.6, 0.06, 0.55), accentMaterial)
-  topStabilizer.position.set(0, 0.42, 1.55)
-  ship.add(topStabilizer)
-
-  const cockpitFrame = new Mesh(new TorusGeometry(0.42, 0.08, 10, 24), hullMaterial)
-  cockpitFrame.rotation.x = Math.PI / 2
-  cockpitFrame.position.set(0, 0.18, -0.85)
-  ship.add(cockpitFrame)
-
-  const cockpitGlass = new Mesh(
-    new SphereGeometry(0.38, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
-    glassMaterial,
-  )
-  cockpitGlass.position.set(0, 0.24, -0.95)
-  ship.add(cockpitGlass)
-
-  const enginePositions = [
-    new Vector3(-0.42, -0.08, 2.05),
-    new Vector3(0.42, -0.08, 2.05),
-    new Vector3(0, -0.22, 2.2),
-  ]
-
-  for (const position of enginePositions) {
-    const bell = new Mesh(new CylinderGeometry(0.24, 0.34, 0.55, 12, 1, true), engineMaterial)
-    bell.rotation.x = Math.PI / 2
-    bell.position.copy(position)
-    ship.add(bell)
-
-    const innerGlow = new Mesh(new CylinderGeometry(0.12, 0.18, 0.2, 10), engineMaterial)
-    innerGlow.rotation.x = Math.PI / 2
-    innerGlow.position.copy(position).add(new Vector3(0, 0, 0.28))
-    ship.add(innerGlow)
+  const shadow = (m: Mesh) => {
+    m.castShadow = true
+    m.receiveShadow = true
+    return m
   }
 
-  const antennaPole = new Mesh(new CylinderGeometry(0.025, 0.025, 0.85, 8), antennaMaterial)
-  antennaPole.position.set(0.08, 0.62, -0.35)
+  // --- Fuselage: layered hull + belly keel + dorsal spine for a slimmer silhouette
+  const fuselage = shadow(new Mesh(new BoxGeometry(0.9, 0.5, 3.4), hullMaterial))
+  ship.add(fuselage)
+
+  const belly = shadow(new Mesh(new CylinderGeometry(0.3, 0.42, 3.0, 10), hullMaterial))
+  belly.rotation.x = Math.PI / 2
+  belly.position.set(0, -0.18, 0.2)
+  ship.add(belly)
+
+  const dorsal = shadow(new Mesh(new CylinderGeometry(0.2, 0.3, 2.6, 10), accentMaterial))
+  dorsal.rotation.x = Math.PI / 2
+  dorsal.position.set(0, 0.27, 0.1)
+  ship.add(dorsal)
+
+  // --- Nose: tapered cone + pitot sensor
+  const nose = shadow(new Mesh(new ConeGeometry(0.4, 1.7, 10), accentMaterial))
+  nose.rotation.x = Math.PI / 2
+  nose.position.z = -2.55
+  ship.add(nose)
+
+  const noseSensor = new Mesh(new SphereGeometry(0.12, 12, 12), antennaMaterial)
+  noseSensor.position.set(0, 0.04, -3.4)
+  ship.add(noseSensor)
+
+  // --- Cockpit: glass canopy + frame
+  const cockpitGlass = new Mesh(
+    new SphereGeometry(0.34, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.62),
+    glassMaterial,
+  )
+  cockpitGlass.position.set(0, 0.26, -0.75)
+  ship.add(cockpitGlass)
+
+  const cockpitFrame = shadow(new Mesh(new TorusGeometry(0.37, 0.05, 8, 20), hullMaterial))
+  cockpitFrame.rotation.x = Math.PI / 2
+  cockpitFrame.position.set(0, 0.2, -0.75)
+  ship.add(cockpitFrame)
+
+  // --- Main wings with slight dihedral + wingtip fins
+  const wingGeo = new BoxGeometry(2.7, 0.06, 1.25)
+  const leftWing = shadow(new Mesh(wingGeo, hullMaterial))
+  leftWing.position.set(-1.45, -0.06, 0.4)
+  leftWing.rotation.y = -0.16
+  leftWing.rotation.z = 0.1
+  ship.add(leftWing)
+
+  const rightWing = shadow(new Mesh(wingGeo, hullMaterial))
+  rightWing.position.set(1.45, -0.06, 0.4)
+  rightWing.rotation.y = 0.16
+  rightWing.rotation.z = -0.1
+  ship.add(rightWing)
+
+  const tipFinGeo = new BoxGeometry(0.05, 0.32, 0.75)
+  const leftTipFin = shadow(new Mesh(tipFinGeo, accentMaterial))
+  leftTipFin.position.set(-2.72, 0.1, 0.5)
+  ship.add(leftTipFin)
+
+  const rightTipFin = shadow(new Mesh(tipFinGeo, accentMaterial))
+  rightTipFin.position.set(2.72, 0.1, 0.5)
+  ship.add(rightTipFin)
+
+  // --- Tail: vertical stabilizer + twin horizontal elevators
+  const vStab = shadow(new Mesh(new BoxGeometry(0.07, 0.72, 0.95), accentMaterial))
+  vStab.position.set(0, 0.5, 1.6)
+  ship.add(vStab)
+
+  const hStabGeo = new BoxGeometry(1.7, 0.05, 0.5)
+  const hStabL = shadow(new Mesh(hStabGeo, hullMaterial))
+  hStabL.position.set(-0.55, 0.16, 1.75)
+  hStabL.rotation.y = -0.14
+  ship.add(hStabL)
+
+  const hStabR = shadow(new Mesh(hStabGeo, hullMaterial))
+  hStabR.position.set(0.55, 0.16, 1.75)
+  hStabR.rotation.y = 0.14
+  ship.add(hStabR)
+
+  // --- Twin engine nacelles + glowing nozzles
+  const nacelleGeo = new CylinderGeometry(0.22, 0.3, 1.1, 10)
+  for (const sx of [-0.4, 0.4]) {
+    const nacelle = shadow(new Mesh(nacelleGeo, hullMaterial))
+    nacelle.rotation.x = Math.PI / 2
+    nacelle.position.set(sx, -0.06, 1.95)
+    ship.add(nacelle)
+
+    const bell = new Mesh(new CylinderGeometry(0.18, 0.26, 0.34, 12, 1, true), engineMaterial)
+    bell.rotation.x = Math.PI / 2
+    bell.position.set(sx, -0.06, 2.5)
+    ship.add(bell)
+
+    const glow = new Mesh(new CylinderGeometry(0.11, 0.16, 0.2, 10), engineMaterial)
+    glow.rotation.x = Math.PI / 2
+    glow.position.set(sx, -0.06, 2.56)
+    ship.add(glow)
+  }
+
+  // --- Underside weapons hardpoint
+  const hardpoint = shadow(new Mesh(new BoxGeometry(0.55, 0.32, 1.1), accentMaterial))
+  hardpoint.position.set(0, -0.42, 0.9)
+  ship.add(hardpoint)
+
+  // --- Antenna + wingtip nav lights
+  const antennaPole = new Mesh(new CylinderGeometry(0.025, 0.025, 0.9, 8), antennaMaterial)
+  antennaPole.position.set(0.1, 0.66, -0.4)
   ship.add(antennaPole)
 
   const antennaTip = new Mesh(new SphereGeometry(0.06, 10, 10), accentMaterial)
-  antennaTip.position.set(0.08, 1.05, -0.35)
+  antennaTip.position.set(0.1, 1.11, -0.4)
   ship.add(antennaTip)
+
+  const navLightGeo = new SphereGeometry(0.07, 8, 8)
+  const navMat = new MeshStandardMaterial({
+    color: 0x33ffaa,
+    emissive: 0x22ff88,
+    emissiveIntensity: 2,
+  })
+  const navLightL = new Mesh(navLightGeo, navMat)
+  navLightL.position.set(-2.5, 0.16, 0.35)
+  ship.add(navLightL)
+  const navLightR = new Mesh(navLightGeo, navMat)
+  navLightR.position.set(2.5, 0.16, 0.35)
+  ship.add(navLightR)
 
   return ship
 }

@@ -4,7 +4,7 @@ import type { ShipDef } from './ships'
 
 const loader = new GLTFLoader()
 
-function loadGlb(url: string, timeoutMs = 15000): Promise<THREE.Group> {
+function loadGlb(url: string, timeoutMs = 60000): Promise<THREE.Group> {
   return new Promise((resolve, reject) => {
     let done = false
     const timer = window.setTimeout(() => {
@@ -148,15 +148,22 @@ function addThrusterNozzles(root: THREE.Group, color = 0x66ffe8) {
 }
 
 export async function loadCraftFile(
-  pack: 'quaternius' | 'kenney',
+  pack: 'quaternius' | 'kenney' | 'highpoly',
   name: string,
   paint?: CraftPaint,
 ): Promise<THREE.Group> {
-  const primary = pack === 'quaternius' ? `assets/quaternius/${name}` : `assets/kenney/${name}`
+  const primary =
+    pack === 'quaternius'
+      ? `assets/quaternius/${name}`
+      : pack === 'highpoly'
+        ? `assets/highpoly/${name}`
+        : `assets/kenney/${name}`
   const fallbacks =
     pack === 'quaternius'
       ? [`assets/quaternius/Bob.glb`, `assets/kenney/craft_speederA.glb`]
-      : [`assets/kenney/craft_speederA.glb`]
+      : pack === 'highpoly'
+        ? [`assets/quaternius/Imperial.glb`, `assets/kenney/craft_speederA.glb`]
+        : [`assets/kenney/craft_speederA.glb`]
 
   let model: THREE.Group | null = null
   for (const url of [primary, ...fallbacks]) {
@@ -234,23 +241,37 @@ export async function decorateStationWithKenney(station: THREE.Group): Promise<v
   station.add(cargo)
 }
 
-/** Soft space reflection — bright enough for panels, not silhouette bloom. */
+/**
+ * Soft space reflection — bright enough for panels, not silhouette bloom.
+ * A warm sun key + cool rim + neutral top + a hint of nebula color below gives
+ * metal hulls a believable gradient reflection instead of flat grey.
+ */
 export function installSpaceEnv(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
   const pmrem = new THREE.PMREMGenerator(renderer)
   const envScene = new THREE.Scene()
-  envScene.add(new THREE.AmbientLight(0xffffff, 0.65))
+  envScene.add(new THREE.AmbientLight(0xffffff, 0.55))
   const hemi = new THREE.HemisphereLight(0xc8e0ff, 0x3a2818, 1.0)
   envScene.add(hemi)
-  const sun = new THREE.DirectionalLight(0xfff2dc, 1.6)
-  sun.position.set(5, 3, 2)
+  // Warm key — sun side
+  const sun = new THREE.DirectionalLight(0xffe6b8, 2.2)
+  sun.position.set(5, 2.5, 2)
   envScene.add(sun)
-  const fill = new THREE.DirectionalLight(0x9ec8ff, 0.55)
-  fill.position.set(-4, 2, -3)
+  // Cool rim — opposite side (space / starfield fill)
+  const fill = new THREE.DirectionalLight(0x7fb8ff, 1.6)
+  fill.position.set(-5, -1, -3)
   envScene.add(fill)
+  // Neutral top-down light keeps roofs readable
+  const top = new THREE.DirectionalLight(0xffffff, 0.9)
+  top.position.set(0, 5, 0)
+  envScene.add(top)
+  // Faint nebula tint from below — adds color to undersides
+  const neb = new THREE.DirectionalLight(0x8855aa, 0.5)
+  neb.position.set(0, -3, 2)
+  envScene.add(neb)
   const envMap = pmrem.fromScene(envScene, 0.04).texture
   scene.environment = envMap
   if ('environmentIntensity' in scene) {
-    ;(scene as THREE.Scene & { environmentIntensity: number }).environmentIntensity = 0.9
+    ;(scene as THREE.Scene & { environmentIntensity: number }).environmentIntensity = 1.0
   }
   pmrem.dispose()
 }

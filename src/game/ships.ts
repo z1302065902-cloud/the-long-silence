@@ -1,3 +1,5 @@
+import { isFullVersion } from './paid'
+
 /** Player hangar — Quaternius Ultimate Spaceships (CC0) + Kenney fallbacks. */
 
 export type ShipDef = {
@@ -6,7 +8,7 @@ export type ShipDef = {
   tagline: string
   /** Filename under pack folder */
   craft: string
-  pack: 'quaternius' | 'kenney'
+  pack: 'quaternius' | 'kenney' | 'highpoly'
   free: boolean
   cost: number
   tint: number
@@ -191,6 +193,23 @@ export const SHIP_CATALOG: ShipDef[] = [
     speedMul: 1.12,
     keepTexture: true,
   },
+  {
+    id: 'harbinger',
+    name: 'Harbinger',
+    tagline: 'High-Poly · 指挥级战舰（CC BY · Comrade1280）',
+    craft: 'harbinger.glb',
+    pack: 'highpoly',
+    free: false,
+    cost: 5000,
+    tint: 0x8aa0c0,
+    emissive: 0x20304a,
+    emissiveIntensity: 0.35,
+    scale: 0.9,
+    hp: 260,
+    shield: 180,
+    speedMul: 0.85,
+    keepTexture: true,
+  },
 ]
 
 const STORAGE_KEY = 'tls-hangar-v1'
@@ -251,6 +270,8 @@ export function getHangarCredits(): number {
 export function isShipUnlocked(id: string): boolean {
   const save = readSave()
   const def = getShipDef(id)
+  // 完整版解锁后全部飞船直接可用
+  if (isFullVersion()) return true
   return def.free || save.unlocked.includes(id)
 }
 

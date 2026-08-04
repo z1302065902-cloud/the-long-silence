@@ -307,6 +307,9 @@ export class SolarSystem {
         const s = 800 + i * 110
         sprite.scale.set(s, s, 1)
         sprite.renderOrder = -90
+        // Store base scale so the nebula can breathe without drifting.
+        sprite.userData.baseScale = s
+        sprite.userData.driftPhase = i * 1.7 + seed
         this.root.add(sprite)
         this.nebulaSprites.push(sprite)
       })
@@ -790,6 +793,17 @@ export class SolarSystem {
 
     this.station.rotation.y += 0.08 * dt
     this.asteroids.rotation.y += 0.01 * dt
+    // Nebula sprites drift and breathe — keeps the backdrop alive
+    for (let i = 0; i < this.nebulaSprites.length; i++) {
+      const s = this.nebulaSprites[i]
+      const phase = (s.userData.driftPhase as number) ?? i
+      s.rotation.z = this.elapsed * 0.02 * (i % 2 === 0 ? 1 : -1)
+      const base = (s.userData.baseScale as number) ?? 800
+      const breathe = 1 + Math.sin(this.elapsed * 0.14 + phase) * 0.05
+      s.scale.set(base * breathe, base * breathe, 1)
+      // Slow parallax drift on the far backdrop
+      s.position.y += Math.sin(this.elapsed * 0.03 + phase) * 0.12
+    }
     this.refreshDockPoint()
 
     const stationBody = this.bodies.find((b) => b.id === 'station-aurora')

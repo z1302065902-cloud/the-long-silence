@@ -1,3 +1,5 @@
+import { gameAudio } from './audio'
+import { isFullVersion, requestPurchase, TRIAL_LEVELS } from './paid'
 import {
   SHIP_CATALOG,
   addHangarCredits,
@@ -26,9 +28,21 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
   const statsEl = document.getElementById('hangar-stats')!
   const actionBtn = document.getElementById('hangar-action') as HTMLButtonElement
   const launchBtn = document.getElementById('launch-btn') as HTMLButtonElement
+  const fullBannerText = document.getElementById('full-banner-text')
+  const fullBtn = document.getElementById('btn-full') as HTMLButtonElement
 
   let previewId = getSelectedShipId()
   let selectCb: ((def: ShipDef) => void) | null = onChange ?? null
+
+  fullBtn?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    gameAudio.play('ui')
+    void requestPurchase().then((ok) => {
+      if (!ok) return
+      refresh()
+      if (fullBannerText) fullBannerText.textContent = '完整版 · 已解锁全部 20 关与所有飞船'
+    })
+  })
 
   grid.innerHTML = ''
   for (const ship of SHIP_CATALOG) {
@@ -79,6 +93,19 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
     creditsEl.textContent = `机库积分 ${credits}`
     const selected = getSelectedShipId()
     const preview = getShipDef(previewId)
+
+    // Full-version banner
+    const full = isFullVersion()
+    if (fullBtn) {
+      fullBtn.textContent = '完整版已解锁'
+      fullBtn.disabled = true
+      fullBtn.classList.remove('primary')
+    }
+    if (fullBannerText) {
+      fullBannerText.textContent = full
+        ? '完整版 · 已解锁全部 20 关与所有飞船'
+        : `试玩版 · 免费体验第 1–${TRIAL_LEVELS} 关`
+    }
 
     for (const card of grid.querySelectorAll<HTMLButtonElement>('.hangar-card')) {
       const id = card.dataset.id!

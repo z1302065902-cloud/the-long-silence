@@ -9,6 +9,7 @@ import {
   type WeaponUpgradeId,
 } from './campaign'
 import { FxSystem } from './fx'
+import { maxPlayableLevel } from './paid'
 import { foldUpgrades, scaleWeapon, type UpgradeState } from './upgrades'
 
 export type WeaponId = 'pulse' | 'plasma' | 'missile' | 'rail' | 'flak' | 'mine'
@@ -368,6 +369,8 @@ export class CombatSystem {
   powerLevel = 0
   onKillReward: ((score: number) => void) | null = null
   onLevelClear: ((level: number, reward: WeaponUpgradeId) => void) | null = null
+  /** 试玩版：通关第一章后触发付费墙。 */
+  onPaywall: ((level: number) => void) | null = null
   onPickup: ((label: string) => void) | null = null
   onSfx: ((kind: 'fire' | 'fire_pulse' | 'fire_plasma' | 'fire_missile' | 'fire_rail' | 'fire_flak' | 'fire_mine' | 'hit' | 'boom' | 'pickup' | 'damage' | 'clear' | 'boss') => void) | null = null
   private weaponCd = 0
@@ -1350,7 +1353,20 @@ export class CombatSystem {
     const save = loadCampaign()
     save.highestCleared = Math.max(save.highestCleared, this.level.id)
     save.upgrades.push(reward) // stack — each clear grants one upgrade roll
-    save.level = Math.min(20, this.level.id + 1)
+    const next = Math.min(20, this.level.id + 1)
+    if (next > maxPlayableLevel()) {
+      // 试玩版：第一章通关后锁定，引导解锁完整版
+      save.level = this.level.id
+      saveCampaign(save)
+      this.rebuildUpgrades()
+      this.playerHp = Math.min(this.playerMaxHp, this.playerHp + 40)
+      this.shield = this.shieldMax
+      this.phase = 'done'
+      this.clearTimer = 0
+      this.onPaywall?.(this.level.id)
+      return
+    }
+    save.level = next
     saveCampaign(save)
     this.rebuildUpgrades()
     // 过关即恢复：护盾回满，船体 +40（上限为当前最大船体）

@@ -524,6 +524,12 @@ body,
   line-height: 1.5;
 }
 
+.set-hint.attribution {
+  font-size: 10px;
+  opacity: 0.5;
+  max-width: 420px;
+}
+
 @media (max-width: 720px) {
   .hangar-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -641,4 +647,38 @@ body,
   bottom: 124px;
   width: 66px;
   height: 66px;
+}
+
+/* ---------- full-version (commercial) banner ---------- */
+
+.full-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(232, 165, 75, 0.35);
+  background: linear-gradient(90deg, rgba(232, 165, 75, 0.12), rgba(78, 205, 196, 0.08));
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--fog);
+}
+
+#full-banner-text {
+  opacity: 0.85;
+}
+
+.full-btn {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 6px 14px;
+  border-color: rgba(232, 165, 75, 0.55);
+  background: rgba(232, 165, 75, 0.14);
+  color: #ffe8c8;
+}
+
+.full-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
 }

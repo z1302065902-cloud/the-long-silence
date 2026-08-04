@@ -6,14 +6,16 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { decorateStationWithKenney, installSpaceEnv, loadShipHull } from './assets'
 import { gameAudio } from './audio'
-import { upgradeDef } from './campaign'
+import { loadCampaign, saveCampaign, upgradeDef } from './campaign'
 import { Autopilot } from './autopilot'
 import { CombatSystem } from './combat'
 import { createGodRaysPass, updateGodRaysPass } from './godrays'
+import { createCinematicPass, updateCinematicPass } from './postfx'
 import { grantKillCredits, mountHangar } from './hangar'
 import { HUD } from './hud'
 import { Input } from './input'
 import { createPlayReport, type PlayReport, type PlaySession } from './playtest'
+import { isFullVersion, TRIAL_LEVELS } from './paid'
 import { environmentForLevel } from './procedural'
 import { Ship } from './ship'
 import { addHangarCredits, getSelectedShipId, getShipDef, isShipUnlocked, type ShipDef } from './ships'
@@ -30,6 +32,7 @@ const REFINE_RATE = 8
 export class Game {
   private renderer: THREE.WebGLRenderer
   private composer: EffectComposer
+  private cinematicPass: ReturnType<typeof createCinematicPass>
   private godRaysPass = createGodRaysPass()
   private scene = new THREE.Scene()
   private camera = new THREE.PerspectiveCamera(70, 1, 0.1, 8000)
@@ -63,6 +66,7 @@ export class Game {
   private equipToken = 0
   readonly audio = gameAudio
   private ui: UiPanels
+  private hangarRefresh: (() => void) | null = null
   private pausedHint = false
 
   constructor(canvas: HTMLCanvasElement) {
@@ -107,6 +111,9 @@ export class Game {
     // Film grain — adds "cinematic" texture, cheap (one full-screen triangle)
     const filmPass = new FilmPass(0.2, false)
     this.composer.addPass(filmPass)
+    // Cinematic grade — vignette + chromatic aberration + saturation/contrast
+    this.cinematicPass = createCinematicPass()
+    this.composer.addPass(this.cinematicPass)
     this.composer.addPass(new OutputPass())
 
     this.input = new Input(canvas)
@@ -161,9 +168,10 @@ export class Game {
       }
       window.setTimeout(waitLaunch, 200)
     } else {
-      mountHangar((def) => {
+      const hangar = mountHangar((def) => {
         void this.previewShip(def)
       })
+      this.hangarRefresh = hangar.refresh
     }
 
     this.combat.onKillReward = (score) => {
@@ -173,6 +181,15 @@ export class Game {
       const u = upgradeDef(reward)
       this.hud.toastMessage(`关卡 ${level} 通关 · 武器升级：${u.title}（${u.blurb}）`, 3.5)
       grantKillCredits(200 + level * 40)
+    }
+    this.combat.onPaywall = () => {
+      gameAudio.play('ui')
+      this.hud.toastMessage(
+        `第一章试玩结束 · 解锁完整版继续 20 关战役（点击右上角设置 → 解锁完整版）`,
+        6,
+      )
+      // Let the hangar UI know it can surface the upgrade offer.
+      this.hangarRefresh?.()
     }
     this.combat.onPickup = (label) => {
       this.hud.toastMessage(label, 2.2)
@@ -225,6 +242,14 @@ export class Game {
   }
 
   private async loadKenneyAssets() {
+    // Free trial: clamp any save past the trial into the playable range.
+    if (!isFullVersion()) {
+      const save = loadCampaign()
+      if (save.level > TRIAL_LEVELS) {
+        save.level = TRIAL_LEVELS
+        saveCampaign(save)
+      }
+    }
     // Ship hull and station decoration are cosmetic — pre-warm them but never
     // block combat readiness on slow asset links.
     try {
@@ -330,6 +355,7 @@ export class Game {
     this.world.update(dt)
     this.hud.update(dt)
     updateGodRaysPass(this.godRaysPass, this.camera, this.sunWorld)
+    updateCinematicPass(this.cinematicPass, this.clock.elapsedTime)
 
     if (!this.running) {
       this.updateTitleCamera()
