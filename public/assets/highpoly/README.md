@@ -31,6 +31,19 @@ npx @gltf-transform/cli optimize harbinger.glb harbinger-opt.glb \
 mv harbinger-opt.glb harbinger.glb
 ```
 
-## 其他模型
+## 其他候选飞船（Sketchfab · CC BY · 可免费下载）
 
-按需添加更多 `.glb` 到本目录，并在 `src/game/ships.ts` 的 `SHIP_CATALOG` 中新增条目（`pack: 'highpoly'`）即可。
+以下为已验证「可下载 + CC BY」的飞船，按推荐度排序。下载 GLB 后放入本目录，并告知 Claude 接入 `ships.ts`。
+
+| # | 模型 | 作者 | GLB 大小 | 链接 |
+|---|---|---|---|---|
+| 1 | AJF-12 "Dvergr"（战斗机） | Star Conflict（官方） | ~17.5MB | https://sketchfab.com/3d-models/none-ecc16e103e79448faf9730f172a1d7e8 |
+| 2 | Space Fighter（战斗机） | Comrade1280 | ~28.6MB | https://sketchfab.com/3d-models/none-e766136d4871441289d37d44a4bbcd3b |
+| 3 | Sci-Fi Personal Space Pod Ship | futaba@blender | ~62MB | https://sketchfab.com/3d-models/none-b158f01dd4a9416fb689ca4401856e7a |
+
+**接入约定文件名**（下载后重命名放入 `public/assets/highpoly/`）：
+- `dvergr.glb`（AJF-12 Dvergr）
+- `fighter.glb`（Space Fighter）
+- `pod.glb`（Personal Space Pod）
+
+**署名要求（CC BY）**：每艘接入的飞船，都需在设置面板署名区添加对应作者署名。
