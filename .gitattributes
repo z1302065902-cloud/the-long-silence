@@ -1,3 +1,7 @@
+# 高精度 GLB 模型走 Git LFS（避免仓库体积膨胀）
 public/assets/highpoly/*.glb filter=lfs diff=lfs merge=lfs -text
 public/assets/quaternius/*.glb filter=lfs diff=lfs merge=lfs -text
 public/assets/kenney/*.glb filter=lfs diff=lfs merge=lfs -text
+
+# 大型音频也走 LFS
+public/audio/*.mp3 filter=lfs diff=lfs merge=lfs -text
