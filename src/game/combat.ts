@@ -138,7 +138,7 @@ type EnemyDef = {
   kind: EnemyKind
   label: string
   craft: string
-  pack: 'quaternius' | 'kenney'
+  pack: 'quaternius' | 'kenney' | 'highpoly'
   hp: number
   speed: number
   scale: number
@@ -205,11 +205,11 @@ const ENEMY_DEFS: EnemyDef[] = [
   {
     kind: 'gunship',
     label: 'Ore Executioner',
-    craft: 'Executioner.glb',
-    pack: 'quaternius',
+    craft: 'enemy_fighter.glb',
+    pack: 'highpoly',
     hp: 125,
     speed: 32,
-    scale: 1.05,
+    scale: 1.5,
     color: 0xcc8844,
     weapon: 'missile',
     score: 230,
@@ -257,11 +257,11 @@ const ENEMY_DEFS: EnemyDef[] = [
   {
     kind: 'assault',
     label: 'Rebel Insurgent',
-    craft: 'Insurgent.glb',
-    pack: 'quaternius',
+    craft: 'enemy_fighter.glb',
+    pack: 'highpoly',
     hp: 90,
     speed: 42,
-    scale: 0.98,
+    scale: 1.15,
     color: 0xe8a54b,
     weapon: 'flak',
     score: 190,
@@ -269,12 +269,12 @@ const ENEMY_DEFS: EnemyDef[] = [
   },
   {
     kind: 'carrier',
-    label: 'Bulk Pancake',
-    craft: 'Pancake.glb',
-    pack: 'quaternius',
+    label: 'Aerius Drone',
+    craft: 'enemy_drone.glb',
+    pack: 'highpoly',
     hp: 160,
     speed: 24,
-    scale: 1.25,
+    scale: 1.4,
     color: 0xaab8c8,
     weapon: 'missile',
     score: 280,
@@ -283,11 +283,11 @@ const ENEMY_DEFS: EnemyDef[] = [
   {
     kind: 'phantom',
     label: 'Ghost Omen',
-    craft: 'Omen.glb',
-    pack: 'quaternius',
+    craft: 'enemy_drone.glb',
+    pack: 'highpoly',
     hp: 70,
     speed: 54,
-    scale: 0.9,
+    scale: 1.0,
     color: 0x5ee0c8,
     weapon: 'rail',
     score: 210,
@@ -401,6 +401,7 @@ export class CombatSystem {
   private fwd = new THREE.Vector3()
   private right = new THREE.Vector3()
   private craftCache = new Map<string, THREE.Group>()
+  private pendingCrafts = new Map<string, Promise<THREE.Group>>()
   private ready = false
   private hitFlash = 0
   private playerRef: THREE.Object3D | null = null
@@ -441,35 +442,53 @@ export class CombatSystem {
   }
 
   async init() {
-    // Lightweight init — combat is playable immediately with fallback hulls.
-    // Enemy/boss models warm up in the background; spawn uses makeFallbackHull
-    // until each model arrives, so slow asset links never block the game.
+    // Commercial-grade on-demand loading: the game boots with ZERO enemy/boss
+    // models downloaded. Current level's boss is prefetched in the background;
+    // every other model is lazy-loaded the moment it first spawns (fallback
+    // hulls keep the game instantly playable, then swap to the real model).
     const save = loadCampaign()
     this.upgradeState = foldUpgrades(save.upgrades)
     this.startLevel(save.level)
     this.ready = true
-    this.warmModels().catch(() => {})
+    // Prefetch the current level's boss so it's ready when the wave clears.
+    this.warmCurrentBoss()
   }
 
-  private async warmModels() {
-    const keys = new Set(ENEMY_DEFS.map((d) => `${d.pack}:${d.craft}`))
-    for (let i = 1; i <= 20; i++) keys.add(`quaternius:${getLevel(i).boss.craft}`)
-    await Promise.all(
-      [...keys].map(async (key) => {
-        if (this.craftCache.has(key)) return
-        const [pack, craft] = key.split(':') as ['quaternius' | 'kenney', string]
-        try {
-          const g = await loadCraftFile(pack, craft, {
-            keepTexture: true,
-            scale: 1,
-            noThrusters: true,
-          })
-          this.craftCache.set(key, g)
-        } catch {
-          this.craftCache.set(key, this.makeFallbackHull(0xff5566))
-        }
-      }),
-    )
+  /** Prefetch only the current level's boss — everything else loads on demand. */
+  private warmCurrentBoss() {
+    const b = this.level.boss
+    void this.ensureCraft(b.pack ?? 'quaternius', b.craft, b.color)
+  }
+
+  /** Lazy-load a craft with dedup + cache. Resolves to the real model (or fallback on error). */
+  private ensureCraft(
+    pack: 'quaternius' | 'kenney' | 'highpoly',
+    craft: string,
+    color: number,
+  ): Promise<THREE.Group> {
+    const key = `${pack}:${craft}`
+    const cached = this.craftCache.get(key)
+    if (cached) return Promise.resolve(cached)
+    const pending = this.pendingCrafts.get(key)
+    if (pending) return pending
+    const p = loadCraftFile(pack, craft, {
+      keepTexture: true,
+      scale: 1,
+      noThrusters: true,
+    })
+      .then((g) => {
+        this.craftCache.set(key, g)
+        this.pendingCrafts.delete(key)
+        return g
+      })
+      .catch(() => {
+        this.pendingCrafts.delete(key)
+        const fb = this.makeFallbackHull(color)
+        this.craftCache.set(key, fb)
+        return fb
+      })
+    this.pendingCrafts.set(key, p)
+    return p
   }
 
   startLevel(levelId: number) {
@@ -494,6 +513,8 @@ export class CombatSystem {
       p.missileGroup.visible = false
       p.bodyGroup.visible = false
     }
+    // Prefetch this level's boss while the waves play out.
+    this.warmCurrentBoss()
   }
 
   /** Call when starting a fresh play / autotest session. */
@@ -543,6 +564,44 @@ export class CombatSystem {
     body.rotation.x = Math.PI / 2
     g.add(body)
     return g
+  }
+
+  /** Apply the enemy faction tint to a freshly-cloned craft group. */
+  private applyEnemyPaint(group: THREE.Group, def: EnemyDef, isBoss: boolean) {
+    group.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (!m.isMesh) return
+      if (Array.isArray(m.material)) m.material = m.material.map((mat) => mat.clone())
+      else m.material = m.material.clone()
+      // Enemies don't cast shadows — negligible visual impact, saves one shadow
+      // map render per enemy (huge when many ships are on screen).
+      m.castShadow = false
+      m.receiveShadow = false
+      const mat = m.material as THREE.MeshStandardMaterial
+      if (!mat || !('color' in mat)) return
+      // Light faction tint — keep Quaternius albedo readable
+      const accent = new THREE.Color(def.color)
+      mat.color.lerp(accent, isBoss ? 0.18 : 0.1)
+      mat.emissive = accent.clone().multiplyScalar(0.12)
+      mat.emissiveIntensity = isBoss ? 0.22 : 0.12
+      mat.envMapIntensity = 0.95
+      mat.metalness = THREE.MathUtils.clamp(mat.metalness ?? 0.45, 0.25, 0.6)
+      mat.roughness = THREE.MathUtils.clamp(mat.roughness ?? 0.45, 0.3, 0.58)
+      mat.needsUpdate = true
+    })
+  }
+
+  /** Swap a live enemy's fallback hull for its real model once it arrives. */
+  private replaceEnemyHull(e: CombatEnemy, template: THREE.Group) {
+    if (!e.alive) return
+    const fresh = template.clone(true)
+    this.applyEnemyPaint(fresh, e.def, Boolean(e.isBoss))
+    fresh.scale.multiplyScalar(e.def.scale)
+    fresh.position.copy(e.group.position)
+    fresh.quaternion.copy(e.group.quaternion)
+    this.root.remove(e.group)
+    this.root.add(fresh)
+    e.group = fresh
   }
 
   cycleWeapon(dir = 1) {
@@ -1330,7 +1389,7 @@ export class CombatSystem {
       kind: 'heavy',
       label: `BOSS ${b.name}`,
       craft: b.craft,
-      pack: 'quaternius',
+      pack: b.pack ?? 'quaternius',
       hp: b.hp,
       speed: b.speed,
       scale: b.scale,
@@ -1384,29 +1443,11 @@ export class CombatSystem {
     opts?: { isBoss?: boolean; dmgMul?: number; fireRateMul?: number; dist?: number },
   ) {
     const key = `${def.pack}:${def.craft}`
-    const template = this.craftCache.get(key) ?? this.makeFallbackHull(def.color)
-    const group = template.clone(true)
-    group.traverse((o) => {
-      const m = o as THREE.Mesh
-      if (!m.isMesh) return
-      if (Array.isArray(m.material)) m.material = m.material.map((mat) => mat.clone())
-      else m.material = m.material.clone()
-      // Enemies don't cast shadows — negligible visual impact, saves one shadow
-      // map render per enemy (huge when many ships are on screen).
-      m.castShadow = false
-      m.receiveShadow = false
-      const mat = m.material as THREE.MeshStandardMaterial
-      if (!mat || !('color' in mat)) return
-      // Light faction tint — keep Quaternius albedo readable
-      const accent = new THREE.Color(def.color)
-      mat.color.lerp(accent, opts?.isBoss ? 0.18 : 0.1)
-      mat.emissive = accent.clone().multiplyScalar(0.12)
-      mat.emissiveIntensity = opts?.isBoss ? 0.22 : 0.12
-      mat.envMapIntensity = 0.95
-      mat.metalness = THREE.MathUtils.clamp(mat.metalness ?? 0.45, 0.25, 0.6)
-      mat.roughness = THREE.MathUtils.clamp(mat.roughness ?? 0.45, 0.3, 0.58)
-      mat.needsUpdate = true
-    })
+    const cached = this.craftCache.get(key)
+    // Use the real model if already loaded; otherwise a fallback hull that
+    // swaps to the real model the instant it finishes downloading.
+    const group = (cached ?? this.makeFallbackHull(def.color)).clone(true)
+    this.applyEnemyPaint(group, def, Boolean(opts?.isBoss))
     group.scale.multiplyScalar(def.scale)
 
     const ang = Math.random() * Math.PI * 2
@@ -1420,7 +1461,7 @@ export class CombatSystem {
     group.position.copy(pos)
 
     this.root.add(group)
-    this.enemies.push({
+    const enemy: CombatEnemy = {
       id: this.nextId++,
       def,
       group,
@@ -1433,7 +1474,14 @@ export class CombatSystem {
       isBoss: opts?.isBoss,
       dmgMul: opts?.dmgMul ?? 1,
       fireRateMul: opts?.fireRateMul ?? 1,
-    })
+    }
+    this.enemies.push(enemy)
+    // Lazy-load the real model; swap it in as soon as it arrives.
+    if (!cached) {
+      void this.ensureCraft(def.pack, def.craft, def.color).then((real) => {
+        this.replaceEnemyHull(enemy, real)
+      })
+    }
   }
 
   private updateEnemies(dt: number, player: THREE.Object3D, playerVel: THREE.Vector3) {
