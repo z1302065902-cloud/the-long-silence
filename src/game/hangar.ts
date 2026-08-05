@@ -94,12 +94,12 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
     const selected = getSelectedShipId()
     const preview = getShipDef(previewId)
 
-    // Full-version banner
+    // Full-version banner — always set both states explicitly
     const full = isFullVersion()
     if (fullBtn) {
-      fullBtn.textContent = '完整版已解锁'
-      fullBtn.disabled = true
-      fullBtn.classList.remove('primary')
+      fullBtn.textContent = full ? '完整版已解锁' : '解锁完整版'
+      fullBtn.disabled = full
+      fullBtn.classList.toggle('primary', !full)
     }
     if (fullBannerText) {
       fullBannerText.textContent = full
