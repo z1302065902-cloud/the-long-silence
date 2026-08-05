@@ -17,6 +17,7 @@ export class UiPanels {
   private hooks: PanelHooks
   private settingsEl: HTMLElement
   private tutorialEl: HTMLElement
+  private privacyEl: HTMLElement
   private volInput: HTMLInputElement
   private sfxCheck: HTMLInputElement
   private sensInput: HTMLInputElement
@@ -26,6 +27,7 @@ export class UiPanels {
     this.settings = loadSettings()
     this.settingsEl = document.getElementById('settings-panel')!
     this.tutorialEl = document.getElementById('tutorial-panel')!
+    this.privacyEl = document.getElementById('privacy-panel')!
     this.volInput = document.getElementById('set-volume') as HTMLInputElement
     this.sfxCheck = document.getElementById('set-sfx') as HTMLInputElement
     this.sensInput = document.getElementById('set-sens') as HTMLInputElement
@@ -71,6 +73,16 @@ export class UiPanels {
       gameAudio.play('ui')
       this.setPaused(true)
     })
+    document.getElementById('btn-privacy')?.addEventListener('click', () => {
+      gameAudio.play('ui')
+      this.settingsEl.classList.add('hidden')
+      this.privacyEl.classList.remove('hidden')
+    })
+    document.getElementById('privacy-close')?.addEventListener('click', () => {
+      gameAudio.play('ui')
+      this.privacyEl.classList.add('hidden')
+      this.settingsEl.classList.remove('hidden')
+    })
 
     this.volInput.addEventListener('input', () => {
       this.settings.masterVolume = Number(this.volInput.value) / 100
@@ -107,6 +119,7 @@ export class UiPanels {
   private setPaused(on: boolean) {
     this.paused = on
     this.settingsEl.classList.toggle('hidden', !on)
+    if (!on) this.privacyEl.classList.add('hidden')
     this.hooks.onPauseChange?.(on)
   }
 

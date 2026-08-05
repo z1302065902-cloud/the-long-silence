@@ -241,6 +241,16 @@ export class Game {
     }
   }
 
+  /** Update the boot progress bar + label on the title card. */
+  private setBootProgress(pct: number, label?: string) {
+    const fill = document.getElementById('boot-fill') as HTMLElement | null
+    if (fill) fill.style.width = `${Math.max(0, Math.min(100, pct))}%`
+    if (label) {
+      const el = document.getElementById('boot-text')
+      if (el) el.textContent = label
+    }
+  }
+
   private async loadKenneyAssets() {
     // Free trial: clamp any save past the trial into the playable range.
     if (!isFullVersion()) {
@@ -252,20 +262,28 @@ export class Game {
     }
     // Ship hull and station decoration are cosmetic — pre-warm them but never
     // block combat readiness on slow asset links.
+    this.setBootProgress(15, '正在加载游戏资源…')
     try {
       const def = getShipDef(getSelectedShipId())
+      this.setBootProgress(35, '加载飞船模型…')
       void this.equipShipHull(def).catch(() => {})
     } catch {
       /* ignore */
     }
+    this.setBootProgress(50, '加载空间站…')
     void decorateStationWithKenney(this.world.station).catch(() => {})
     try {
+      this.setBootProgress(70, '初始化战斗系统…')
       await this.combat.init()
     } catch (err) {
       console.warn('Combat init failed', err)
     }
     this.combatReady = true
     this.assetsReady = true
+    this.setBootProgress(100, '准备就绪')
+    // Remove the whole boot hint once ready.
+    const boot = document.getElementById('boot-loading')
+    if (boot) boot.remove()
     this.beginPlaySession()
     this.hud.toastMessage(
       this.playReport

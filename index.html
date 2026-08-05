@@ -28,7 +28,10 @@
         <div id="crosshair"></div>
         <div id="hit-veil"></div>
         <div id="title-card">
-          <div id="boot-loading">正在加载游戏资源…</div>
+          <div id="boot-loading">
+            <span id="boot-text">正在加载游戏资源…</span>
+            <div id="boot-bar"><div id="boot-fill"></div></div>
+          </div>
           <h1>The Long Silence</h1>
           <div id="hangar">
             <div class="hangar-top">
@@ -70,7 +73,21 @@
           <label class="set-row">鼠标灵敏度 <input id="set-sens" type="range" min="0.4" max="2.2" step="0.1" /></label>
           <p class="set-hint">四章战役：边境试炼 → 矿带猎杀 → 静默航道 → 终焉回响</p>
           <p class="set-hint attribution">3D 模型：Comrade1280 · futaba@blender · 及 Sketchfab 社区艺术家 — CC Attribution。飞船与舰船造型均为原创游戏设定中的虚构设计。</p>
+          <button type="button" id="btn-privacy" class="hangar-btn">隐私政策</button>
           <button type="button" id="settings-close" class="hangar-btn primary">继续飞行</button>
+        </div>
+        <div id="privacy-panel" class="panel hidden">
+          <h2>隐私政策</h2>
+          <div class="privacy-body">
+            <p>本游戏仅在您的浏览器本地存储（localStorage）中保存以下数据：</p>
+            <ul>
+              <li>游戏进度（当前关卡、已解锁飞船）</li>
+              <li>游戏设置（音量、灵敏度、教程状态）</li>
+              <li>机库积分</li>
+            </ul>
+            <p>这些数据仅保存在您的设备上，不会上传到任何服务器，也不会用于追踪或广告。您可以通过清除浏览器站点数据随时删除。</p>
+          </div>
+          <button type="button" id="privacy-close" class="hangar-btn primary">关闭</button>
         </div>
         <div id="touch-ui">
           <div id="touch-joy"></div>
