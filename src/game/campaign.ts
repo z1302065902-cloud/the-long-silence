@@ -31,6 +31,7 @@ export type LevelDef = {
 export type BossDef = {
   name: string
   craft: string
+  pack?: 'quaternius' | 'kenney' | 'highpoly'
   hp: number
   speed: number
   scale: number
@@ -243,10 +244,52 @@ export const LEVELS: LevelDef[] = Array.from({ length: 20 }, (_, i) => {
     enemySpeedMul: 1 + t * 0.55,
     boss: {
       name: BOSS_NAMES[i],
-      craft: BOSS_CRAFTS[i % BOSS_CRAFTS.length],
+      craft:
+        i === 0
+          ? 'boss_northstar.glb'
+          : i === 1
+            ? 'boss_mindflow.glb'
+            : i === 2
+              ? 'boss_spaceship.glb'
+              : i === 3
+                ? 'boss_mandalorian.glb'
+                : i === 4
+                  ? 'boss_steampunk.glb'
+                  : i === 5
+                    ? 'boss_damaged.glb'
+                    : i === 6
+                      ? 'boss_skycruiser.glb'
+                      : i === 7
+                        ? 'boss_negzero.glb'
+                        : i === 8
+                          ? 'boss_supermatic.glb'
+                          : i === 9
+                            ? 'boss_skycruiser2.glb'
+                            : i === 10
+                              ? 'boss_radiant.glb'
+                              : i === 11
+                                ? 'boss_golden.glb'
+                                : i === 12
+                                  ? 'boss_vambrace.glb'
+                                  : i === 13
+                                    ? 'boss_nms.glb'
+                                    : i === 14
+                                      ? 'boss_warp.glb'
+                                      : i === 15
+                                        ? 'boss_shuttle.glb'
+                                        : i === 16
+                                          ? 'boss_prop.glb'
+                                          : i === 17
+                                            ? 'boss_sw.glb'
+                                            : i === 18
+                                              ? 'boss_spaceship2.glb'
+                                              : i === 19
+                                                ? 'boss_final.glb'
+                                                : BOSS_CRAFTS[i % BOSS_CRAFTS.length],
+      pack: i <= 19 ? 'highpoly' : undefined,
       hp: Math.round(420 + i * 140),
       speed: 22 + i * 1.1,
-      scale: 1.55 + t * 0.55,
+      scale: i === 0 ? 1.8 : i === 1 ? 1.7 : i === 2 ? 1.7 : i === 3 ? 1.6 : i === 4 ? 1.6 : i === 5 ? 1.7 : i === 6 ? 1.7 : i === 7 ? 1.7 : i === 8 ? 1.7 : i === 9 ? 1.7 : i === 10 ? 1.7 : i === 11 ? 1.7 : i === 12 ? 1.7 : i === 13 ? 1.7 : i === 14 ? 1.7 : i === 15 ? 1.7 : i === 16 ? 1.7 : i === 17 ? 1.7 : i === 18 ? 1.7 : i === 19 ? 1.9 : 1.55 + t * 0.55,
       color: [0xff6644, 0xffaa33, 0x66ddff, 0xff55aa, 0xaaff66, 0xffdd55][i % 6],
       weapon: WEAPONS_CYCLE[i % WEAPONS_CYCLE.length],
       fireRateMul: 1.1 + t * 1.6,
