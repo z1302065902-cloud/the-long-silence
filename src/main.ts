@@ -1,5 +1,9 @@
 import './style.css'
 import { Game } from './game/game'
+import { initPurchaseFlow } from './game/paid'
+
+// 检测支付成功回跳，支付成功则解锁完整版
+initPurchaseFlow()
 
 let errorShown = false
 
