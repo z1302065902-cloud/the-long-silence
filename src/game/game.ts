@@ -55,12 +55,15 @@ export class Game {
   private playReport: PlayReport | null = null
   private sessionIndex = 0
   private sessionTimer = 0
+  /** Wall-clock start of current autotest session (immune to frame-rate loss). */
+  private sessionStartWall = 0
   private sessionDeaths = 0
   private sessionKillsStart = 0
   private sessionScoreStart = 0
   private wasDead = false
   private bgThemeLevel = 0
   private assetsReady = false
+  private autotestTimeout = 18
   private equippedShipId = getSelectedShipId()
   private hullCache = new Map<string, THREE.Group>()
   private equipToken = 0
@@ -155,6 +158,7 @@ export class Game {
 
     const params = new URLSearchParams(window.location.search)
     const autotest = Number(params.get('autotest') || '0')
+    this.autotestTimeout = Math.max(3, Number(params.get('autotestTimeout') || '18'))
     window.__GAME__ = this
     if (autotest > 0) {
       this.autopilot = new Autopilot()
@@ -297,6 +301,7 @@ export class Game {
     if (this.playReport.sessionsCompleted >= this.playReport.sessionsTarget) return
     this.sessionIndex = this.playReport.sessionsCompleted + 1
     this.sessionTimer = 0
+    this.sessionStartWall = performance.now()
     this.sessionDeaths = 0
     this.sessionKillsStart = this.combat.kills
     this.sessionScoreStart = this.combat.score
@@ -329,9 +334,11 @@ export class Game {
     const pickups = this.combat.powerLevel
     // Flag only when there were enough kills for a drop and none collected
     if (kills >= 3 && pickups === 0) issues.push('missed_power_pickup')
+    // Report real wall-clock duration (frame-rate independent).
+    const durationSec = (performance.now() - this.sessionStartWall) / 1000
     const session: PlaySession = {
       index: this.sessionIndex,
-      durationSec: Number(this.sessionTimer.toFixed(2)),
+      durationSec: Number(durationSec.toFixed(2)),
       kills,
       deaths: this.sessionDeaths,
       score,
@@ -431,8 +438,8 @@ export class Game {
     if (this.playReport && this.autopilot && this.assetsReady && !this.playReport.done) {
       this.sessionTimer += dt
       this.autopilot.tick(dt, this.ship, this.combat, this.input.state)
-      // Session ends: 18s timeout, or 2 deaths in session
-      if (this.sessionTimer > 18) {
+      // Session ends: wall-clock timeout (frame-rate independent), or 2 deaths.
+      if (performance.now() - this.sessionStartWall > this.autotestTimeout * 1000) {
         this.endPlaySession('timeout')
         return
       }

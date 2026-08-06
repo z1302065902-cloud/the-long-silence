@@ -389,6 +389,9 @@ export class CombatSystem {
   private waveIndex = 0
   private upgradeState: UpgradeState = foldUpgrades([])
   private clearTimer = 0
+  /** Wall-clock calibration so wave/clear pacing is frame-rate independent. */
+  private lastWallTime = 0
+  private realDt = 0
   private baseHull = 160
   private baseShield = 90
   private levelKills = 0
@@ -498,6 +501,7 @@ export class CombatSystem {
     this.wave = 1
     this.spawnTimer = 1.2
     this.clearTimer = 0
+    this.lastWallTime = 0
     this.killsSincePickup = 0
     this.levelKills = 0
     this.levelPickups = 0
@@ -652,7 +656,12 @@ export class CombatSystem {
       return
     }
 
-    this.tickCampaign(dt, player.position)
+    // Real wall-clock elapsed for pacing timers (frame-rate independent).
+    const now = performance.now()
+    this.realDt = this.lastWallTime === 0 ? dt : Math.min((now - this.lastWallTime) / 1000, 0.1)
+    this.lastWallTime = now
+
+    this.tickCampaign(player.position)
 
     if (this.invuln > 0) this.invuln -= dt
     if (this.shield < this.shieldMax) {
@@ -1282,11 +1291,11 @@ export class CombatSystem {
     }
   }
 
-  private tickCampaign(dt: number, near: THREE.Vector3) {
+  private tickCampaign(near: THREE.Vector3) {
     if (this.phase === 'done') return
 
     if (this.phase === 'clear') {
-      this.clearTimer -= dt
+      this.clearTimer -= this.realDt
       if (this.clearTimer <= 0) {
         if (this.level.id >= 20) {
           this.phase = 'done'
@@ -1305,7 +1314,7 @@ export class CombatSystem {
     if (this.phase === 'wave') {
       if (alive.length === 0) {
         if (this.waveIndex < this.level.waves) {
-          this.spawnTimer -= dt
+          this.spawnTimer -= this.realDt
           if (this.spawnTimer <= 0) {
             this.spawnCampaignWave(near)
             this.waveIndex += 1
