@@ -553,6 +553,23 @@ body,
   max-width: 420px;
 }
 
+.set-links {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.set-links a {
+  color: var(--teal);
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+.set-links a:hover {
+  opacity: 1;
+}
+
 .privacy-body {
   max-width: 440px;
   font-size: 13px;
@@ -719,4 +736,54 @@ body,
 .full-btn:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* ---------- activation-code redeem ---------- */
+
+.redeem-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 10px;
+}
+
+#redeem-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(16, 22, 30, 0.9);
+  border: 1px solid rgba(200, 212, 224, 0.2);
+  color: var(--fog);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  padding: 8px 12px;
+  text-transform: uppercase;
+}
+
+#redeem-input::placeholder {
+  color: rgba(200, 212, 224, 0.35);
+}
+
+#redeem-input:focus {
+  outline: none;
+  border-color: rgba(78, 205, 196, 0.6);
+}
+
+#redeem-btn {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 8px 14px;
+}
+
+.redeem-msg {
+  font-size: 11px;
+  min-width: 120px;
+}
+
+.redeem-msg.ok {
+  color: var(--teal);
+}
+
+.redeem-msg.err {
+  color: var(--danger);
 }

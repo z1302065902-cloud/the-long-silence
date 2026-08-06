@@ -42,6 +42,11 @@
               <span id="full-banner-text">试玩版 · 免费体验第 1–5 关</span>
               <button type="button" id="btn-full" class="hangar-btn full-btn">解锁完整版</button>
             </div>
+            <div id="redeem-row" class="redeem-row">
+              <input id="redeem-input" type="text" placeholder="输入激活码 XXXX-XXXX-XXXXXXXX" autocomplete="off" spellcheck="false" />
+              <button type="button" id="redeem-btn" class="hangar-btn">兑换</button>
+              <span id="redeem-msg" class="redeem-msg"></span>
+            </div>
             <div id="hangar-grid" class="hangar-grid"></div>
             <div class="hangar-detail">
               <div>
@@ -73,7 +78,11 @@
           <label class="set-row">鼠标灵敏度 <input id="set-sens" type="range" min="0.4" max="2.2" step="0.1" /></label>
           <p class="set-hint">四章战役：边境试炼 → 矿带猎杀 → 静默航道 → 终焉回响</p>
           <p class="set-hint attribution">3D 模型：Comrade1280 · futaba@blender · 及 Sketchfab 社区艺术家 — CC Attribution。飞船与舰船造型均为原创游戏设定中的虚构设计。</p>
-          <button type="button" id="btn-privacy" class="hangar-btn">隐私政策</button>
+          <div class="set-links">
+            <a href="./tos.html" target="_blank" rel="noopener">服务条款</a>
+            <span>·</span>
+            <a href="./privacy.html" target="_blank" rel="noopener">隐私政策</a>
+          </div>
           <button type="button" id="settings-close" class="hangar-btn primary">继续飞行</button>
         </div>
         <div id="privacy-panel" class="panel hidden">
