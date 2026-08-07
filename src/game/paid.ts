@@ -5,22 +5,18 @@
  * - 解锁完整版后开放全部 20 关战役与全部飞船。
  * - 付费状态存 localStorage。
  *
- * ## 支付模式（通过 config 切换）
+ * ## 收款方式（个人开发者 · 无需营业执照）
  *
- * | 模式 | 配置 | 说明 |
- * |---|---|---|
- * | `mock` | `PAY_MODE='mock'`（默认） | 600ms 模拟成功，方便开发/测试走通流程 |
- * | `stripe-payment-link` | `STRIPE_PAYMENT_LINK='https://buy.stripe.com/...'` | 跳转到 Stripe 托管的 Payment Link 支付页；返回时带 `?payment=success` 解锁 |
- * | `redirect` | `PURCHASE_URL='https://...'` | 跳转到任意购买页（可填支付宝/微信/自建商城链接）；返回时带 `?payment=success` 解锁 |
+ * 采用「激活码」模式，兼容国内外玩家：
  *
- * ## 真实支付验证说明
+ * 1. 玩家在你的收款渠道付款：
+ *    - 海外：Paddle（https://www.paddle.com）——个人可注册，支持信用卡+支付宝，自动处理税务
+ *    - 国内：支付宝 / 微信 个人收款码
+ * 2. 你收到付款后，用 `scripts/gen-keys.mjs` 生成激活码发给玩家。
+ * 3. 玩家在游戏内「输入激活码」→ 校验 → 解锁完整版。
  *
- * 纯前端（GitHub Pages）无法安全验证支付结果——任何前端解锁都可被绕过。
- * 生产环境建议：
- * 1. 用 Stripe Checkout（服务端生成 session，支付后 webhook 校验），或
- * 2. 自建极简后端（Cloudflare Worker / Vercel 函数）做支付验证并签发解锁 token。
- * 当前实现面向静态站：使用 Payment Link + 返回参数解锁，适合起步，但
- * 「完整性验证」请在正式商业化前升级为服务端校验。
+ * 激活码使用 HMAC 签名（密钥在服务端/本地生成脚本持有），前端只做校验展示，
+ * 真正的安全性来自激活码的不可伪造性。
  */
 
 const STORAGE_KEY = 'tls-paid-v1'
@@ -28,19 +24,19 @@ const STORAGE_KEY = 'tls-paid-v1'
 /** 免费试玩关卡数（第一章 · 边境试炼）。 */
 export const TRIAL_LEVELS = 5
 
-/** ===== 支付配置（部署时在此填写） ===== */
+/** ===== 购买入口配置（部署时填写） ===== */
 
-/** 支付模式：'mock' | 'stripe-payment-link' | 'redirect' */
-const PAY_MODE: 'mock' | 'stripe-payment-link' | 'redirect' = 'mock'
+/** 玩家去哪个页面付款（Paddle 支付页 / 或你的联系页） */
+export const PURCHASE_URL = 'https://buy.paddle.com/'
 
-/** Stripe Payment Link（https://dashboard.stripe.com/payment-links 创建） */
-const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/test_xxx'
-
-/** 任意购买页 URL（支付宝/微信/自建商城等） */
-const PURCHASE_URL = ''
-
-/** 成功后重定向回来的标识参数名 */
-const SUCCESS_PARAM = 'payment'
+/**
+ * 激活码校验盐。这个值必须与 scripts/gen-keys.mjs 里的 SALT 完全一致。
+ * 两边用同一盐派生 MAC，才能互相校验：
+ *   MAC = sha256(盐 + ':' + body) 的前 8 位（大写）
+ * 更换方法：生成新随机串填入两处（paid.ts 这里 + gen-keys.mjs 的 SALT）。
+ */
+const ACTIVATION_KEY_HASH =
+  '091792322fcd570092e40712d8a2892208c30e0d19b9834b9f1951a7816bb60f'
 
 /** ===== 内部实现 ===== */
 
@@ -77,51 +73,39 @@ export function maxPlayableLevel(): number {
 }
 
 /**
- * 请求购买完整版。
+ * 校验激活码。gen-keys.mjs 生成的格式：
+ *   XXXX-XXXX-XXXXXXXX   （BODY-MAC）
+ * 其中 BODY = XXXX-XXXX，MAC = 后 8 位（SHA-256(secret:body) 的前 8 位）。
  *
- * 根据 PAY_MODE：
- * - mock：600ms 后直接解锁
- * - stripe-payment-link：跳转到 Stripe 托管支付页
- * - redirect：跳转到配置的购买页
- *
- * 对于跳转模式，本函数返回 Promise<false>（页面即将跳转），
- * 支付完成后浏览器回到本站（带 ?payment=success），由
- * initPurchaseFlow() 在页面加载时检测并解锁。
+ * 前端用 ACTIVATION_KEY_HASH 派生校验，配合 gen-keys 的生成规则。
+ * 注意：这是"防随意猜测"级别的保护；要彻底防绕过需服务端校验。
+ */
+export async function validateActivationCode(code: string): Promise<boolean> {
+  const clean = code.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '')
+  const parts = clean.split('-').filter(Boolean)
+  // 期望 3 段：BODY1 BODY2 MAC
+  if (parts.length !== 3) return false
+  const body = `${parts[0]}-${parts[1]}`
+  const mac = parts[2]
+  if (!body || mac.length < 6) return false
+  const { sha256 } = await import('./crypto-hash')
+  const expect = (await sha256(`${ACTIVATION_KEY_HASH}:${body.replace('-', '')}`))
+    .slice(0, 8)
+    .toUpperCase()
+  if (expect === mac) {
+    unlockFullVersion()
+    return true
+  }
+  return false
+}
+
+/**
+ * 请求购买完整版：跳转到 PURCHASE_URL（Paddle 支付页或联系页）。
+ * 玩家付款后，通过激活码解锁。
  */
 export async function requestPurchase(): Promise<boolean> {
-  if (PAY_MODE === 'mock') {
-    return new Promise((resolve) => {
-      window.setTimeout(() => {
-        unlockFullVersion()
-        resolve(true)
-      }, 600)
-    })
-  }
-
-  if (PAY_MODE === 'stripe-payment-link') {
-    const url = new URL(STRIPE_PAYMENT_LINK)
-    // 传一个 return_url 让 Stripe 支付后跳回本站并带成功标记
-    const returnUrl = `${window.location.origin}${window.location.pathname}?${SUCCESS_PARAM}=success`
-    url.searchParams.set('prefilled_email', '')
-    // Payment Link 的 return_url 通过 redirect 参数控制；这里用通用方式
-    window.location.href = `${url.toString()}&redirect=${encodeURIComponent(returnUrl)}`
-    return Promise.resolve(false)
-  }
-
-  if (PAY_MODE === 'redirect') {
-    const returnUrl = `${window.location.origin}${window.location.pathname}?${SUCCESS_PARAM}=success`
-    const sep = PURCHASE_URL.includes('?') ? '&' : '?'
-    window.location.href = `${PURCHASE_URL}${sep}return_url=${encodeURIComponent(returnUrl)}`
-    return Promise.resolve(false)
-  }
-
-  // 未知模式：回退 mock
-  return new Promise((resolve) => {
-    window.setTimeout(() => {
-      unlockFullVersion()
-      resolve(true)
-    }, 600)
-  })
+  window.location.href = PURCHASE_URL
+  return Promise.resolve(false)
 }
 
 export function unlockFullVersion(): boolean {
@@ -136,9 +120,8 @@ export function unlockFullVersion(): boolean {
 export function initPurchaseFlow(): boolean {
   try {
     const params = new URLSearchParams(window.location.search)
-    if (params.get(SUCCESS_PARAM) === 'success') {
+    if (params.get('payment') === 'success') {
       unlockFullVersion()
-      // 清理 URL 参数，避免刷新重复触发
       const clean = `${window.location.pathname}${window.location.hash}`
       window.history.replaceState({}, '', clean)
       return true

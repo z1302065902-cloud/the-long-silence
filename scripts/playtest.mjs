@@ -6,7 +6,7 @@ import { chromium } from 'playwright'
 import { writeFileSync } from 'fs'
 
 const sessions = Number(process.argv[2] || 50)
-const url = `http://127.0.0.1:5173/?autotest=${sessions}`
+const url = `http://127.0.0.1:5174/?autotest=${sessions}`
 const out = new URL('../playtest-report.json', import.meta.url)
 
 import { homedir } from 'os'

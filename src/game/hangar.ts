@@ -1,5 +1,5 @@
 import { gameAudio } from './audio'
-import { isFullVersion, requestPurchase, TRIAL_LEVELS } from './paid'
+import { isFullVersion, requestPurchase, validateActivationCode, TRIAL_LEVELS } from './paid'
 import {
   SHIP_CATALOG,
   addHangarCredits,
@@ -30,6 +30,9 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
   const launchBtn = document.getElementById('launch-btn') as HTMLButtonElement
   const fullBannerText = document.getElementById('full-banner-text')
   const fullBtn = document.getElementById('btn-full') as HTMLButtonElement
+  const redeemInput = document.getElementById('redeem-input') as HTMLInputElement
+  const redeemBtn = document.getElementById('redeem-btn') as HTMLButtonElement
+  const redeemMsg = document.getElementById('redeem-msg')
 
   let previewId = getSelectedShipId()
   let selectCb: ((def: ShipDef) => void) | null = onChange ?? null
@@ -42,6 +45,33 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
       refresh()
       if (fullBannerText) fullBannerText.textContent = '完整版 · 已解锁全部 20 关与所有飞船'
     })
+  })
+
+  const doRedeem = async () => {
+    if (!redeemInput || !redeemMsg) return
+    const code = redeemInput.value
+    if (!code) return
+    gameAudio.play('ui')
+    redeemMsg.textContent = '验证中…'
+    redeemMsg.className = 'redeem-msg'
+    const ok = await validateActivationCode(code)
+    if (ok) {
+      redeemMsg.textContent = '✓ 解锁成功！'
+      redeemMsg.className = 'redeem-msg ok'
+      redeemInput.value = ''
+      refresh()
+      if (fullBannerText) fullBannerText.textContent = '完整版 · 已解锁全部 20 关与所有飞船'
+    } else {
+      redeemMsg.textContent = '激活码无效'
+      redeemMsg.className = 'redeem-msg err'
+    }
+  }
+  redeemBtn?.addEventListener('click', (e) => {
+    e.stopPropagation()
+    void doRedeem()
+  })
+  redeemInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') void doRedeem()
   })
 
   grid.innerHTML = ''
