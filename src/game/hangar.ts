@@ -69,9 +69,13 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
         const r = await fetch(`${AFDIAN_VERIFY_URL}?order=${order}`, { method: 'GET' })
         const j = (await r.json().catch(() => ({}))) as { ok?: boolean; em?: string }
         ok = Boolean(j.ok)
-        if (!ok) redeemMsg.textContent = j.em === 'order not paid' ? '订单未找到或未付款' : '验证失败，请稍后再试'
+        if (!ok) {
+          redeemMsg.textContent = j.em === 'order not paid' ? '订单未找到或未付款' : '验证失败，请稍后再试'
+          redeemMsg.className = 'redeem-msg err'
+        }
       } catch {
         redeemMsg.textContent = '网络错误，请稍后再试'
+        redeemMsg.className = 'redeem-msg err'
       }
     } else {
       ok = await validateActivationCode(raw)
@@ -82,7 +86,8 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
       redeemInput.value = ''
       refresh()
       if (fullBannerText) fullBannerText.textContent = '完整版 · 已解锁全部 20 关与所有飞船'
-    } else {
+    } else if (!looksLikeAfdianOrder) {
+      // 仅激活码分支到达这里；订单分支已在上面给出具体错误提示
       redeemMsg.textContent = '激活码无效'
       redeemMsg.className = 'redeem-msg err'
     }
