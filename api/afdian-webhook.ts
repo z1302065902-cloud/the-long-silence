@@ -3,14 +3,14 @@
  *
  * 职责：
  *  1. 校验爱发电签名（MD5(user_id + token + params)），未通过 → 4xx，让爱发电重试
- *  2. 识别「已付款」的 ¥8 完整版方案订单（plan_id 匹配 + status===2）
+ *  2. 识别「已付款」的 $1 完整版方案订单（plan_id 匹配 + status===2）
  *  3. 把订单确定性记入数据库（按 out_trade_no 幂等 upsert）
  *  4. 玩家随后在游戏内输入「爱发电订单号」，由 api/afdian-verify 校验并授权解锁
  *
  * 环境变量：
  *  - AFDIAN_USER_ID    : 爱发电 user_id（20765df8947211f1b18f52540025c377）
  *  - AFDIAN_TOKEN      : 爱发电开发者后台「生成」的 token（切勿泄露）
- *  - AFDIAN_PLAN_ID    : ¥8 完整版方案的 plan_id
+ *  - AFDIAN_PLAN_ID    : $1 完整版方案的 plan_id
  *  - DATABASE_URL      : Postgres 连接串（存已付款订单）
  *
  * 注意：webhook 真实负载结构以爱发电官方为准。首次部署后请点后台「发送测试」，
@@ -108,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('[afdian] order received', JSON.stringify(order).slice(0, 400))
 
-    // 只处理「已付款」的 ¥8 方案订单（status===2 = 已支付）
+    // 只处理「已付款」的 $1 方案订单（status===2 = 已支付）
     if (!outTradeNo) {
       console.warn('[afdian] no out_trade_no, ignoring')
       return ok()
