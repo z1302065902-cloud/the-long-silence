@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pricing · The Long Silence</title>
+    <style>
+      :root {
+        --ink: #0a0e14;
+        --fog: #c8d4e0;
+        --amber: #e8a54b;
+        --teal: #4ecdc4;
+        --panel: rgba(8, 12, 18, 0.7);
+        --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: radial-gradient(ellipse at 50% 0%, rgba(78,205,196,0.08), transparent 50%),
+                    var(--ink);
+        color: var(--fog);
+        font-family: var(--font-mono);
+        min-height: 100vh;
+        padding: 48px 20px;
+      }
+      .wrap { max-width: 1000px; margin: 0 auto; }
+      header { text-align: center; margin-bottom: 40px; }
+      h1 {
+        font-family: var(--font-display);
+        font-weight: 400;
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        letter-spacing: .08em;
+        color: #eef3f7;
+        margin-bottom: 10px;
+      }
+      .sub { font-size: 13px; opacity: .7; letter-spacing: .05em; }
+
+      /* billing toggle */
+      .toggle-row { display: flex; justify-content: center; align-items: center; gap: 14px; margin-bottom: 36px; font-size: 13px; }
+      .toggle {
+        position: relative; width: 64px; height: 30px; border-radius: 999px;
+        background: rgba(78,205,196,.2); border: 1px solid rgba(78,205,196,.4); cursor: pointer;
+      }
+      .toggle::after {
+        content: ""; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%;
+        background: var(--teal); transition: transform .2s ease;
+      }
+      .toggle[data-monthly="false"]::after { transform: translateX(34px); }
+      .billing-label.active { color: var(--teal); font-weight: 600; }
+      .badge-year { font-size: 11px; color: var(--amber); border: 1px solid rgba(232,165,75,.5); border-radius: 999px; padding: 2px 8px; }
+
+      /* tier cards */
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+      .tier {
+        background: var(--panel); border: 1px solid rgba(200,212,224,.14); border-radius: 12px;
+        padding: 26px 22px; display: flex; flex-direction: column; backdrop-filter: blur(8px);
+      }
+      .tier.featured { border-color: rgba(232,165,75,.5); box-shadow: 0 0 30px rgba(232,165,75,.12); }
+      .tier-name { font-family: var(--font-display); font-size: 1.35rem; color: #f2f6f8; letter-spacing: .05em; }
+      .tier-desc { font-size: 12px; opacity: .75; margin: 6px 0 16px; line-height: 1.5; }
+      .price { font-size: 28px; color: var(--teal); margin-bottom: 4px; }
+      .price-bill { font-size: 11px; opacity: .6; margin-bottom: 18px; }
+      .features { list-style: none; font-size: 12px; line-height: 2; margin-bottom: 24px; flex: 1; }
+      .features li::before { content: "✓ "; color: var(--teal); }
+      .subscribe {
+        border: 1px solid rgba(78,205,196,.5); background: rgba(78,205,196,.14);
+        color: #e8fffb; font: inherit; letter-spacing: .1em; text-transform: uppercase;
+        padding: 12px 18px; border-radius: 8px; cursor: pointer; transition: background .15s;
+      }
+      .subscribe:hover { background: rgba(78,205,196,.28); }
+      .subscribe:disabled { opacity: .5; cursor: default; }
+
+      .foot { text-align: center; margin-top: 36px; font-size: 11px; opacity: .55; line-height: 1.7; }
+      .loading, .error { text-align: center; padding: 20px; font-size: 13px; }
+      .error { color: #ff8a8a; }
+
+      @media (max-width: 720px) {
+        .grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>The Long Silence · Pricing</h1>
+        <div class="sub">Premium 3D space shooter — choose your tier</div>
+      </header>
+
+      <div class="toggle-row">
+        <span class="billing-label active" id="lbl-month">Monthly</span>
+        <div class="toggle" id="billing-toggle" data-monthly="true" role="switch" aria-checked="true"></div>
+        <span class="billing-label" id="lbl-year">Yearly</span>
+        <span class="badge-year">save 2 months</span>
+      </div>
+
+      <div id="loading" class="loading">Loading prices…</div>
+      <div id="error" class="error" style="display:none"></div>
+      <div class="grid" id="tier-grid" style="display:none"></div>
+
+      <div class="foot">
+        All plans include a 7-day free trial. Cancel anytime.<br />
+        Prices shown in your local currency where available.
+      </div>
+    </div>
+    <script type="module" src="/src/pricing.ts"></script>
+  </body>
+</html>

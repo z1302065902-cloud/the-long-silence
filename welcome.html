@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome · The Long Silence</title>
+    <style>
+      :root { --ink:#0a0e14; --fog:#c8d4e0; --teal:#4ecdc4; --amber:#e8a54b; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: radial-gradient(ellipse at 50% 0%, rgba(78,205,196,.1), transparent 50%), var(--ink);
+        color: var(--fog); font-family: system-ui, sans-serif;
+        min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+      }
+      .card { text-align: center; max-width: 480px; }
+      h1 { font-family: Georgia, serif; font-weight: 400; font-size: 2rem; color: #eef3f7; margin-bottom: 14px; }
+      p { font-size: 14px; line-height: 1.7; opacity: .85; margin-bottom: 28px; }
+      a.btn {
+        display: inline-block; border: 1px solid rgba(78,205,196,.5); background: rgba(78,205,196,.14);
+        color: #e8fffb; text-decoration: none; font: inherit; letter-spacing: .08em; text-transform: uppercase;
+        padding: 12px 26px; border-radius: 8px; transition: background .15s;
+      }
+      a.btn:hover { background: rgba(78,205,196,.28); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Welcome aboard, Commander</h1>
+      <p>Your subscription is active. Your ships await — head back to the game to start your campaign.</p>
+      <a class="btn" href="/">Play The Long Silence</a>
+    </div>
+  </body>
+</html>

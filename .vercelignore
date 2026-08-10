@@ -1,0 +1,12 @@
+# Git 仓库（~1GB 历史）不该上传到 Vercel
+.git
+# 依赖与构建产物（服务端用不到，部署时重新 build）
+node_modules
+dist
+dist-itch
+# 游戏 3D 模型资产（~500MB，游戏本体部署在 GitHub Pages，Vercel 只需 api 函数）
+public/assets/highpoly
+# 本地脚本/日志/浏览器自动化产物
+logs
+.playwright-mcp
+.cursor

@@ -24,7 +24,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # 注入爱发电订单自助解锁的验证端点（Vercel）到前端 bundle。
+      # 该变量为 public，无敏感信息；不设则前端回退到相对路径 /api/afdian-verify。
       - run: npm run build
+        env:
+          VITE_AFDIAN_VERIFY_URL: https://the-long-silence-seven.vercel.app/api/afdian-verify
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

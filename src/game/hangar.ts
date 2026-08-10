@@ -1,5 +1,11 @@
 import { gameAudio } from './audio'
-import { isFullVersion, requestPurchase, validateActivationCode, TRIAL_LEVELS } from './paid'
+import {
+  isFullVersion,
+  requestPurchase,
+  validateActivationCode,
+  TRIAL_LEVELS,
+  AFDIAN_VERIFY_URL,
+} from './paid'
 import {
   SHIP_CATALOG,
   addHangarCredits,
@@ -49,12 +55,27 @@ export function mountHangar(onChange?: (def: ShipDef) => void): HangarUI {
 
   const doRedeem = async () => {
     if (!redeemInput || !redeemMsg) return
-    const code = redeemInput.value
-    if (!code) return
+    const raw = redeemInput.value.trim()
+    if (!raw) return
     gameAudio.play('ui')
     redeemMsg.textContent = '验证中…'
     redeemMsg.className = 'redeem-msg'
-    const ok = await validateActivationCode(code)
+    // 爱发电订单号 = 纯数字（14 位以上）→ 走服务端自助解锁
+    const looksLikeAfdianOrder = /^\d{14,}$/.test(raw.replace(/[\s-]/g, ''))
+    let ok = false
+    if (looksLikeAfdianOrder) {
+      try {
+        const order = encodeURIComponent(raw.replace(/[\s-]/g, ''))
+        const r = await fetch(`${AFDIAN_VERIFY_URL}?order=${order}`, { method: 'GET' })
+        const j = (await r.json().catch(() => ({}))) as { ok?: boolean; em?: string }
+        ok = Boolean(j.ok)
+        if (!ok) redeemMsg.textContent = j.em === 'order not paid' ? '订单未找到或未付款' : '验证失败，请稍后再试'
+      } catch {
+        redeemMsg.textContent = '网络错误，请稍后再试'
+      }
+    } else {
+      ok = await validateActivationCode(raw)
+    }
     if (ok) {
       redeemMsg.textContent = '✓ 解锁成功！'
       redeemMsg.className = 'redeem-msg ok'

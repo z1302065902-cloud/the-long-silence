@@ -30,6 +30,19 @@ export const TRIAL_LEVELS = 5
 export const PURCHASE_URL = 'https://buy.paddle.com/'
 
 /**
+ * 爱发电订单自助解锁的验证接口地址。
+ * - 本地/打包：构建时用 Vite 注入 VITE_AFDIAN_VERIFY_URL
+ * - 缺省：相对路径 /api/afdian-verify（仅当游戏与 api 同源时可用）
+ *
+ * 由于游戏部署在 GitHub Pages（静态站），api 在 Vercel，
+ * 部署时必须在 .env / Vite 配置里设置 VITE_AFDIAN_VERIFY_URL 指向 Vercel 端点，
+ * 例如 https://the-long-silence.vercel.app/api/afdian-verify
+ */
+export const AFDIAN_VERIFY_URL: string =
+  (import.meta as any).env?.VITE_AFDIAN_VERIFY_URL ||
+  '/api/afdian-verify'
+
+/**
  * 激活码校验盐。这个值必须与 scripts/gen-keys.mjs 里的 SALT 完全一致。
  * 两边用同一盐派生 MAC，才能互相校验：
  *   MAC = sha256(盐 + ':' + body) 的前 8 位（大写）
