@@ -77,6 +77,8 @@ function writeSave(s: PaidSave) {
 }
 
 export function isFullVersion(): boolean {
+  // itch.io 完整版构建：构建时注入 VITE_FULL_VERSION=1 直接解锁
+  if ((import.meta as any).env?.VITE_FULL_VERSION === '1') return true
   return readSave().fullVersion
 }
 
